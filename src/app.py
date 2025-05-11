@@ -46,7 +46,7 @@ class NEATLetterClassifier(QMainWindow):
         self.fig, self.ax = plt.subplots(figsize=(6, 4))
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.viz_layout.addWidget(self.canvas)
-        plt.ion()
+        # Removed plt.ion() as it might cause an extra window
         
     def create_controls(self):
         """Left pane - Controls"""
@@ -140,12 +140,12 @@ class NEATLetterClassifier(QMainWindow):
 
     def _get_mock_visualization_data(self):
         """Generates a consistent set of mock data for visualization."""
-        # 1. Mock Rasterized Letter (e.g., an 'M')
+        # 1. Mock Rasterized Letter (e.g., an 'A')
         mock_letter_pattern = np.array([
+            [0, 1, 1, 1, 1, 0],
             [1, 0, 0, 0, 0, 1],
-            [1, 1, 0, 0, 1, 1],
-            [1, 0, 1, 1, 0, 1],
             [1, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1],
             [1, 0, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 1],
             [0, 0, 0, 0, 0, 0],
@@ -204,7 +204,7 @@ class NEATLetterClassifier(QMainWindow):
         mock_output_activations = [0.75, 0.20, 0.05]
 
         # 4. Mock Predicted Letter
-        mock_prediction = "M" # Or 'A' if activations lead to it
+        mock_prediction = "A"
 
         return mock_genome, mock_letter_pattern, mock_output_activations, mock_prediction
 
@@ -234,6 +234,7 @@ class NEATLetterClassifier(QMainWindow):
         
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.viz_layout.addWidget(self.canvas)
+        plt.close(self.fig) # Close the figure to prevent it from opening in a separate window
         
         self.main_layout.addWidget(self.viz_widget, stretch=1)
     
@@ -271,7 +272,7 @@ class NEATLetterClassifier(QMainWindow):
         stats_layout.addWidget(self.samples_label)
         
         # Fitness history graph
-        fig, self.ax = plt.subplots(figsize=(3, 2))
+        fig, self.ax = plt.subplots(figsize=(1.5, 1.5))
         self.line, = self.ax.plot([], [], 'g-')
         self.ax.set_xlim(0, 100)
         self.ax.set_ylim(0, 1)
@@ -279,6 +280,7 @@ class NEATLetterClassifier(QMainWindow):
         
         canvas = FigureCanvasQTAgg(fig)
         stats_layout.addWidget(canvas)
+        plt.close(fig) # Close the figure to prevent it from opening in a separate window
         
         self.main_layout.addWidget(stats_widget)
     
@@ -346,16 +348,31 @@ class NEATLetterClassifier(QMainWindow):
         # Ensure input nodes are added based on the actual config
         num_inputs_cfg = self.config.genome_config.num_inputs
         G_input.add_nodes_from(range(num_inputs_cfg))
-        input_pos = {i: (0, -i / (num_inputs_cfg/10.0)) for i in range(num_inputs_cfg)} # Dynamic spacing
+        
+        # Calculate positions for input neurons in an 8x6 grid
+        input_pos = {}
+        rows, cols = 8, 6
+        # Adjust spacing and centering for the grid
+        x_spacing = 1.0 / (cols - 1) if cols > 1 else 0
+        y_spacing = 1.0 / (rows - 1) if rows > 1 else 0
+        
+        for i in range(num_inputs_cfg):
+            # Assuming row-major order for flattened image data
+            row = i // cols
+            col = i % cols
+            # Map grid coordinates to plot coordinates (adjusting for origin and scaling)
+            # Invert y-axis to match image convention (origin top-left)
+            input_pos[i] = (col * x_spacing, 1.0 - row * y_spacing) 
+
         nx.draw_networkx_nodes(G_input, input_pos, ax=self.ax_input,
                                  nodelist=list(range(num_inputs_cfg)), # Explicitly pass nodelist
                                  node_color='#4e79a7', node_size=30) # Smaller nodes
         self.ax_input.set_title('Input Neurons', color='white', fontsize=9)
-        if num_inputs_cfg > 0: # Avoid division by zero if num_inputs_cfg is 0
-            self.ax_input.set_ylim(-(num_inputs_cfg-1)/(num_inputs_cfg/10.0) - 0.5, 0.5) # Adjust Y limits
-        else:
-            self.ax_input.set_ylim(-0.5, 0.5)
-        self.ax_input.set_xlim(-0.5, 0.5) # Adjust X limits
+        
+        # Set limits to encompass the grid
+        self.ax_input.set_xlim(-0.1, 1.1)
+        self.ax_input.set_ylim(-0.1, 1.1)
+        self.ax_input.invert_yaxis() # Invert y-axis to match image
         
         # 3. Draw main network topology
         G = nx.DiGraph()
