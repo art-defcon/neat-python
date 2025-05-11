@@ -1,7 +1,7 @@
 import sys
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                             QLabel, QSlider, QCheckBox, QPushButton, QGroupBox)
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -192,32 +192,71 @@ class NEATLetterClassifier(QMainWindow):
             self.weight_mutate_rate_slider, self.weight_replace_rate_slider,
             self.conn_add_prob_slider, self.node_add_prob_slider
         ]
-        if checked: # "Start Auto-Evolve" was clicked
+        if checked:  # "Start Auto-Evolve" was clicked
             self.auto_evolve_button.setText("Stop Auto-Evolve")
-            self.auto_evolve_button.setStyleSheet("color: white; background-color: #c70000; padding: 5px;") # Red for stop
+            self.auto_evolve_button.setStyleSheet("color: white; background-color: #c70000; padding: 5px;")  # Red for stop
 
             # Disable sliders
             for slider in self.evolution_sliders:
                 slider.setEnabled(False)
-            
-            self.mock_data_checkbox.setEnabled(False) # Disable mock data during evolution
+            self.mock_data_checkbox.setEnabled(False)  # Disable mock data during evolution
 
             current_params = self.get_current_neat_parameters()
-            self.neat_logic.reconfigure_neat(current_params) # Pass params to NEATLogic
+            self.neat_logic.reconfigure_neat(current_params)  # Pass params to NEATLogic
 
-            self.run_evolution() # Start the evolution process
-        else: # "Stop Auto-Evolve" was clicked or evolution finished
+            # Evolution loop
+            while self.auto_evolve_button.isChecked() and not self.mock_data_enabled:
+                # This is the core logic previously in run_evolution(), minus timer parts
+                if self.mock_data_enabled: # Should be caught by loop condition or on_mock_data_toggled
+                    if self.auto_evolve_button.isChecked():
+                         self.auto_evolve_button.setChecked(False)
+                    break # Exit loop
+
+                evolution_finished = self.neat_logic.run_evolution_step()
+                self.update_stats_display()
+
+                # Update visualization with best genome from NEATLogic
+                if self.neat_logic.p and self.neat_logic.p.best_genome:
+                    current_eval_letter = self.neat_logic.generate_letter()
+                    letter_pattern, _ = self.neat_logic.generate_letter_pattern(current_eval_letter)
+
+                    if letter_pattern is not None:
+                        predicted_letter, output_activations = self.neat_logic.classify_letter(self.neat_logic.p.best_genome, letter_pattern)
+                        is_correct = (predicted_letter == current_eval_letter)
+                        self.visualization.draw_network(
+                            genome=self.neat_logic.p.best_genome,
+                            is_mock=False,
+                            actual_letter_pattern=letter_pattern,
+                            actual_output_activations=output_activations,
+                            actual_prediction=predicted_letter,
+                            actual_letter=current_eval_letter,
+                            is_correct=is_correct
+                        )
+                    else:
+                         self.visualization.draw_network(
+                            genome=self.neat_logic.p.best_genome,
+                            is_mock=False,
+                            actual_prediction="Error: No Pattern",
+                            actual_letter=None
+                        )
+                else:
+                    pass  # No best genome to visualize
+
+                QApplication.processEvents()  # Allow UI to update and respond
+
+                if evolution_finished:
+                    if self.auto_evolve_button.isChecked():
+                        self.auto_evolve_button.setChecked(False)
+                    break  # Exit the evolution loop
+        else:  # "Stop Auto-Evolve" was clicked or evolution finished
             self.auto_evolve_button.setText("Start Auto-Evolve")
-            self.auto_evolve_button.setStyleSheet("color: white; background-color: #007acc; padding: 5px;") # Blue for start
+            self.auto_evolve_button.setStyleSheet("color: white; background-color: #007acc; padding: 5px;")  # Blue for start
 
             # Enable sliders
             for slider in self.evolution_sliders:
                 slider.setEnabled(True)
-            
-            self.mock_data_checkbox.setEnabled(True) # Re-enable mock data
-
-            if hasattr(self, 'evolution_timer') and self.evolution_timer:
-                self.evolution_timer.stop()
+            self.mock_data_checkbox.setEnabled(True)  # Re-enable mock data
+            # No timer to stop, the loop condition handles termination.
 
     def on_randomize_letter_clicked(self):
         """Randomize a new letter and redraw the network visualization."""
@@ -477,88 +516,6 @@ class NEATLetterClassifier(QMainWindow):
             'node_add_prob': self.node_add_prob_slider.value() / 100.0,
         }
         return params
-
-    def run_evolution(self):
-        """Main evolution loop"""
-        if self.mock_data_enabled:
-            # If mock data is enabled, ensure no evolution timer runs and UI reflects this
-            if hasattr(self, 'evolution_timer') and self.evolution_timer:
-                self.evolution_timer.stop()
-            # Ensure auto_evolve_button reflects that evolution is not running
-            if self.auto_evolve_button.isChecked(): # If it's still "checked" (pressed)
-                 self.auto_evolve_button.setChecked(False) # Unpress it, which calls on_auto_evolve_toggled(False)
-            self.auto_evolve_button.setEnabled(False) # Disable button if mock data is on
-            return
-
-        # TODO: Before this, ensure NEAT is configured with current slider values if this is the *start* of a new evolution sequence.
-        # This will be handled in on_auto_evolve_toggled for the initial start.
-        # For subsequent steps, NEATLogic uses its current configuration.
-
-        # Run one step of evolution using NEATLogic
-        evolution_finished = self.neat_logic.run_evolution_step()
-
-        # Update UI with new stats
-        self.update_stats_display()
-
-        # Update visualization with best genome from NEATLogic
-        if self.neat_logic.p and self.neat_logic.p.best_genome:
-            # Generate a letter for this evolution step
-            current_eval_letter = self.neat_logic.generate_letter() # Use a new variable to avoid confusion with self.neat_logic.current_letter used in eval
-            letter_pattern, _ = self.neat_logic.generate_letter_pattern(current_eval_letter)
-
-            if letter_pattern is not None:
-                # Get activations and prediction using the best_genome
-                # classify_letter now returns (predicted_char, activations_list)
-                predicted_letter, output_activations = self.neat_logic.classify_letter(self.neat_logic.p.best_genome, letter_pattern)
-                
-                is_correct = (predicted_letter == current_eval_letter)
-
-                self.visualization.draw_network(
-                    genome=self.neat_logic.p.best_genome,
-                    is_mock=False,
-                    actual_letter_pattern=letter_pattern,
-                    actual_output_activations=output_activations,
-                    actual_prediction=predicted_letter,
-                    actual_letter=current_eval_letter, # Pass the actual letter
-                    is_correct=is_correct
-                )
-            else:
-                # Handle error if letter_pattern is None
-                 self.visualization.draw_network(
-                    genome=self.neat_logic.p.best_genome,
-                    is_mock=False,
-                    actual_prediction="Error: No Pattern",
-                    actual_letter=None # Pass None for actual letter
-                )
-        else:
-            pass # No best genome to visualize
-
-
-        # Check if evolution finished
-        if evolution_finished:
-            if hasattr(self, 'evolution_timer') and self.evolution_timer:
-                self.evolution_timer.stop()
-            # Uncheck the button and re-enable sliders when evolution finishes
-            self.auto_evolve_button.setChecked(False) # This will call on_auto_evolve_toggled(False)
-            # Optionally, display a message or take further action
-        else:
-            pass # Evolution step completed, not finished yet.
-
-        # Auto-evolve if button is checked, mock data is off, and not finished
-        if self.auto_evolve_button.isChecked() and not self.mock_data_enabled and not evolution_finished:
-            if hasattr(self, 'evolution_timer') and self.evolution_timer and self.evolution_timer.isActive():
-                self.evolution_timer.stop() # Ensure no multiple timers
-            
-            self.evolution_timer = QTimer()
-            self.evolution_timer.setSingleShot(True)
-            self.evolution_timer.timeout.connect(self.run_evolution)
-            self.evolution_timer.start(2000) # 2-second interval
-        elif not self.auto_evolve_button.isChecked() and hasattr(self, 'evolution_timer') and self.evolution_timer and self.evolution_timer.isActive():
-            # If button was unchecked manually, stop timer
-            self.evolution_timer.stop()
-        elif self.auto_evolve_button.isChecked() and evolution_finished:
-            pass # Auto-evolve button is checked, but evolution finished. Not restarting timer.
-
 
     # Removed evaluate_genome, generate_letter, _pixmap_to_matrix, generate_letter_pattern, classify_letter, evaluate
     # as they are in neat_logic.py or visualization.py
