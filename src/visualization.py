@@ -75,16 +75,14 @@ class NEATVisualization:
     def _get_mock_visualization_data(self):
         """Generates a consistent set of mock data for visualization."""
         # 1. Mock Rasterized Letter (e.g., an 'A')
-        mock_letter_pattern = np.array([
-            [0, 1, 1, 1, 1, 0],
-            [1, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 1],
-            [1, 1, 1, 1, 1, 1],
-            [1, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 1]
-        ]) # 8x6
+        # Updated to 16x16
+        mock_letter_pattern = np.zeros((16, 16), dtype=int)
+        # Simple 'A' like pattern for 16x16
+        mock_letter_pattern[2:14, 7:9] = 1 # Vertical bar
+        mock_letter_pattern[2, 4:12] = 1   # Top bar
+        mock_letter_pattern[7, 4:12] = 1   # Middle bar
+        mock_letter_pattern[2:8, 4] = 1    # Left leg part 1
+        mock_letter_pattern[2:8, 11] = 1   # Right leg part 1
 
         # 2. Mock Network Genome
         # Create a new genome config if not available (should be from self.config)
@@ -225,21 +223,21 @@ class NEATVisualization:
 
         # Ensure current_letter_pattern is not None before imshow
         if current_letter_pattern is None:
-             current_letter_pattern = np.zeros((8,6)) # Default to blank if None
+             current_letter_pattern = np.zeros((16,16)) # Default to blank if None
 
-        # 1. Draw raster grid (8x6)
+        # 1. Draw raster grid (16x16)
         self.ax_grid.imshow(current_letter_pattern, cmap='gray', vmin=0, vmax=1)
-        self.ax_grid.set_title('Input Pattern (8x6)', color='white', fontsize=12)
+        self.ax_grid.set_title('Input Pattern (16x16)', color='white', fontsize=12)
 
-        # 2. Draw input neurons (48 nodes)
+        # 2. Draw input neurons (256 nodes)
         G_input = nx.DiGraph()
         # Ensure input nodes are added based on the actual config
         num_inputs_cfg = self.config.genome_config.num_inputs
         G_input.add_nodes_from(range(num_inputs_cfg))
 
-        # Calculate positions for input neurons in an 8x6 grid
+        # Calculate positions for input neurons in a 16x16 grid
         input_pos = {}
-        rows, cols = 8, 6
+        rows, cols = 16, 16
         # Adjust spacing and centering for the grid
         x_spacing = 1.0 / (cols - 1) if cols > 1 else 0
         y_spacing = 1.0 / (rows - 1) if rows > 1 else 0
@@ -249,8 +247,8 @@ class NEATVisualization:
             row = i // cols
             col = i % cols
             # Map grid coordinates to plot coordinates (adjusting for origin and scaling)
-            # Reverse both horizontal and vertical order
-            input_pos[i] = ((cols - 1 - col) * x_spacing, (rows - 1 - row) * y_spacing)
+            # Reverse vertical order, keep horizontal order direct
+            input_pos[i] = (col * x_spacing, (rows - 1 - row) * y_spacing)
 
         # Determine node colors based on activation (pixel value)
         input_node_colors = []
@@ -266,7 +264,7 @@ class NEATVisualization:
 
         nx.draw_networkx_nodes(G_input, input_pos, ax=self.ax_input,
                                  nodelist=list(range(num_inputs_cfg)), # Explicitly pass nodelist
-                                 node_color=input_node_colors, node_size=30) # Smaller nodes
+                                 node_color=input_node_colors, node_size=10) # Reduced node size for 16x16 grid
         self.ax_input.set_title('Input Neurons', color='white', fontsize=12)
 
         # Set limits to encompass the grid
@@ -488,19 +486,19 @@ class NEATVisualization:
         plt.pause(0.01)
 
     def _pixmap_to_matrix(self, pixmap, actual_letter):
-        """Convert QPixmap to 8x6 binary matrix"""
+        """Convert QPixmap to 16x16 binary matrix"""
         image = pixmap.toImage()
         matrix = []
-        for y in range(8):
+        for y in range(16):
             row = []
-            for x in range(6):
+            for x in range(16):
                 pixel = image.pixelColor(x, y)
                 row.append(0 if pixel.lightness() > 127 else 1)
             matrix.append(row)
         return np.array(matrix), actual_letter
 
     def generate_letter_pattern(self, letter):
-        """Generate 8x6 pattern from random system font for a given letter"""
+        """Generate 16x16 pattern from random system font for a given letter"""
         from PyQt5.QtGui import QFont, QFontDatabase, QPainter, QPixmap
         from PyQt5.QtCore import Qt
 
@@ -518,9 +516,9 @@ class NEATVisualization:
         painter.drawText(pixmap.rect(), Qt.AlignCenter, letter)
         painter.end()
 
-        # Scale down to 8x6 and convert to matrix
+        # Scale down to 16x16 and convert to matrix
         return self._pixmap_to_matrix(pixmap.scaled(
-            6, 8, Qt.KeepAspectRatio, Qt.SmoothTransformation), letter)
+            16, 16, Qt.KeepAspectRatio, Qt.SmoothTransformation), letter)
 
     def classify_letter(self, genome, letter_pattern):
         """Classify letter using NEAT network based on a given letter_pattern"""

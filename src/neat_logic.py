@@ -84,20 +84,20 @@ class NEATLogic:
         return random.choice(['A', 'B', 'C'])
 
     def _pixmap_to_matrix(self, pixmap, actual_letter):
-        """Convert QPixmap to 6x6 binary matrix"""
+        """Convert QPixmap to 16x16 binary matrix"""
         from PyQt5.QtGui import QImage # Import here to avoid circular dependency
         image = pixmap.toImage()
         matrix = []
-        for y in range(8):
+        for y in range(16):
             row = []
-            for x in range(6):
+            for x in range(16):
                 pixel = image.pixelColor(x, y)
                 row.append(0 if pixel.lightness() > 127 else 1)
             matrix.append(row)
         return np.array(matrix), actual_letter
 
     def generate_letter_pattern(self, letter):
-        """Generate 8x6 pattern from random system font for a given letter"""
+        """Generate 16x16 pattern from random system font for a given letter"""
         from PyQt5.QtGui import QFont, QFontDatabase, QPainter, QPixmap # Import here to avoid circular dependency
         from PyQt5.QtCore import Qt # Import here to avoid circular dependency
 
@@ -115,9 +115,9 @@ class NEATLogic:
         painter.drawText(pixmap.rect(), Qt.AlignCenter, letter)
         painter.end()
 
-        # Scale down to 8x6 and convert to matrix
+        # Scale down to 16x16 and convert to matrix
         return self._pixmap_to_matrix(pixmap.scaled(
-            6, 8, Qt.KeepAspectRatio, Qt.SmoothTransformation), letter)
+            16, 16, Qt.KeepAspectRatio, Qt.SmoothTransformation), letter)
 
     def classify_letter(self, genome, letter_pattern):
         """Classify letter using NEAT network based on a given letter_pattern"""

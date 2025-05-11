@@ -107,7 +107,64 @@ class NEATLetterClassifier(QMainWindow):
         self.mock_data_checkbox.stateChanged.connect(self.on_mock_data_toggled)
         control_layout.addWidget(self.mock_data_checkbox)
 
+        # Randomize Letter Button
+        self.randomize_button = QPushButton("Randomize New Letter")
+        self.randomize_button.setStyleSheet("color: white; background-color: #555;")
+        self.randomize_button.clicked.connect(self.on_randomize_letter_clicked)
+        control_layout.addWidget(self.randomize_button)
+
         self.main_layout.addWidget(control_widget)
+
+    def on_randomize_letter_clicked(self):
+        """Randomize a new letter and redraw the network visualization."""
+        # Ensure we are not in mock data mode
+        if self.mock_data_enabled:
+            return
+
+        # 1. Randomize a letter
+        random_actual_letter = self.neat_logic.generate_letter()
+
+        # 2. Rasterize it
+        letter_pattern, _ = self.neat_logic.generate_letter_pattern(random_actual_letter)
+
+        # Get the current best genome
+        current_genome = None
+        if self.neat_logic.p and self.neat_logic.p.best_genome:
+             current_genome = self.neat_logic.p.best_genome
+        elif self.neat_logic.p and self.neat_logic.p.population:
+             # If no best genome yet, use the first one in the population
+             current_genome = next(iter(self.neat_logic.p.population.values()), None)
+
+
+        if current_genome and letter_pattern is not None:
+            # 3. Get network output and classification
+            predicted_letter, output_activations = self.neat_logic.classify_letter(current_genome, letter_pattern)
+
+            # 4. Determine correctness
+            is_correct = (predicted_letter == random_actual_letter)
+
+            # 5. Update visualization
+            self.visualization.draw_network(
+                genome=current_genome,
+                is_mock=False,
+                actual_letter_pattern=letter_pattern,
+                actual_output_activations=output_activations,
+                actual_prediction=predicted_letter,
+                actual_letter=random_actual_letter,
+                is_correct=is_correct
+            )
+
+            # 6. Update stats display (optional, as stats are generation-based, but good for consistency)
+            self.update_stats_display()
+        elif current_genome:
+             # Handle case where letter_pattern could not be generated
+             self.visualization.draw_network(genome=current_genome, is_mock=False, actual_prediction="Error: No Pattern", actual_letter=None)
+             self.update_stats_display()
+        else:
+             # Handle case: No genome found
+             self.visualization.draw_network(genome=None, is_mock=False, actual_prediction="Error: No Genome", actual_letter=None)
+             self.update_stats_display(is_mock=True)
+
 
     def on_mock_data_toggled(self, state):
         self.mock_data_enabled = (state == Qt.Checked)
