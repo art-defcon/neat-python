@@ -361,18 +361,30 @@ class NEATLetterClassifier(QMainWindow):
             row = i // cols
             col = i % cols
             # Map grid coordinates to plot coordinates (adjusting for origin and scaling)
-            # Invert y-axis to match image convention (origin top-left)
-            input_pos[i] = (col * x_spacing, 1.0 - row * y_spacing) 
+            # Reverse both horizontal and vertical order
+            input_pos[i] = ((cols - 1 - col) * x_spacing, (rows - 1 - row) * y_spacing) 
+
+        # Determine node colors based on activation (pixel value)
+        input_node_colors = []
+        if current_letter_pattern is not None:
+            flattened_pattern = current_letter_pattern.flatten()
+            for i in range(num_inputs_cfg):
+                if i < len(flattened_pattern):
+                    # Color based on pixel value (0 or 1)
+                    color = '#4e79a7' if flattened_pattern[i] == 0 else '#f28e2b' # Blue for 0, Orange for 1
+                    input_node_colors.append(color)
+                else:
+                    input_node_colors.append('#4e79a7') # Default color if pattern is smaller
 
         nx.draw_networkx_nodes(G_input, input_pos, ax=self.ax_input,
                                  nodelist=list(range(num_inputs_cfg)), # Explicitly pass nodelist
-                                 node_color='#4e79a7', node_size=30) # Smaller nodes
+                                 node_color=input_node_colors, node_size=30) # Smaller nodes
         self.ax_input.set_title('Input Neurons', color='white', fontsize=9)
         
         # Set limits to encompass the grid
         self.ax_input.set_xlim(-0.1, 1.1)
         self.ax_input.set_ylim(-0.1, 1.1)
-        self.ax_input.invert_yaxis() # Invert y-axis to match image
+        # Removed self.ax_input.invert_yaxis()
         
         # 3. Draw main network topology
         G = nx.DiGraph()
