@@ -43,12 +43,29 @@ class NEATVisualization:
         self.ax_output = self.fig.add_subplot(gs[3])  # Output neurons
         self.ax_pred = self.fig.add_subplot(gs[4])    # Prediction text
 
+        # Set aspect for square plots
+        self.ax_grid.set_aspect('equal', adjustable='box')
+        self.ax_input.set_aspect('equal', adjustable='box')
+
         # Configure axes
-        for ax in [self.ax_grid, self.ax_input, self.ax_network, self.ax_output, self.ax_pred]:
-            ax.set_facecolor('#1e1e1e')
-            ax.tick_params(axis='both', which='both', length=0)
-            ax.set_xticks([])
-            ax.set_yticks([])
+        for ax_obj in [self.ax_grid, self.ax_input, self.ax_network, self.ax_output, self.ax_pred]: # Renamed ax to ax_obj to avoid conflict
+            ax_obj.set_facecolor('#1e1e1e')
+            ax_obj.tick_params(axis='both', which='both', length=0)
+            ax_obj.set_xticks([])
+            ax_obj.set_yticks([])
+            # Style spines for a "box" around subplot
+            for spine in ax_obj.spines.values():
+                spine.set_visible(True)
+                spine.set_edgecolor('gray') # Light gray for subtle box
+                spine.set_linewidth(0.5)
+
+
+        # Adjust subplot spacing (margins)
+        # Assuming 100 DPI, 12-inch width (1200px). 20px is 0.2 inches.
+        # Left/Right margin: 0.2in / 12in = 0.0167. Let's use 0.02 for a bit more.
+        # Wspace: 0.2in. Avg subplot width approx (12 - 2*0.2 - 4*0.2)/5 = 2.16in. wspace_frac = 0.2/2.16 = 0.092. Let's use 0.1.
+        self.fig.subplots_adjust(left=0.03, right=0.97, bottom=0.05, top=0.90, wspace=0.15, hspace=0.15)
+
 
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.viz_layout.addWidget(self.canvas)
@@ -204,6 +221,17 @@ class NEATVisualization:
             ax.set_xticks([])
             ax.set_yticks([])
 
+        # Ensure square aspect ratio after clearing
+        self.ax_grid.set_aspect('equal', adjustable='box')
+        self.ax_input.set_aspect('equal', adjustable='box')
+
+        # Style spines for each subplot on redraw as clear() might reset them
+        for ax_obj in [self.ax_grid, self.ax_input, self.ax_network, self.ax_output, self.ax_pred]:
+            for spine in ax_obj.spines.values():
+                spine.set_visible(True)
+                spine.set_edgecolor('gray')
+                spine.set_linewidth(0.5)
+
         current_letter_pattern = None
         current_output_activations = None
         current_prediction = None
@@ -227,7 +255,7 @@ class NEATVisualization:
 
         # 1. Draw raster grid (16x16)
         self.ax_grid.imshow(current_letter_pattern, cmap='gray', vmin=0, vmax=1)
-        self.ax_grid.set_title('Input Pattern (16x16)', color='white', fontsize=12)
+        self.ax_grid.set_title('Input Pattern (16x16)', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
 
         # 2. Draw input neurons (256 nodes)
         G_input = nx.DiGraph()
@@ -264,8 +292,9 @@ class NEATVisualization:
 
         nx.draw_networkx_nodes(G_input, input_pos, ax=self.ax_input,
                                  nodelist=list(range(num_inputs_cfg)), # Explicitly pass nodelist
-                                 node_color=input_node_colors, node_size=10) # Reduced node size for 16x16 grid
-        self.ax_input.set_title('Input Neurons', color='white', fontsize=12)
+                                 node_color=input_node_colors, node_size=10, # Reduced node size for 16x16 grid
+                                 edgecolors='dimgray', linewidths=0.5) 
+        self.ax_input.set_title('Input Neurons', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
 
         # Set limits to encompass the grid
         self.ax_input.set_xlim(-0.1, 1.1)
@@ -353,12 +382,13 @@ class NEATVisualization:
                 edge_colors_list_for_edges.append('#59a14f' if conn.weight > 0 else '#e15759')
 
         nx.draw_networkx_nodes(G, pos, ax=self.ax_network, nodelist=all_nodes_for_graph,
-                               node_color=node_colors_list, node_size=node_sizes_list)
+                               node_color=node_colors_list, node_size=node_sizes_list,
+                               edgecolors='black', linewidths=1.0)
         if edges_to_draw: # Only draw edges if there are any
             nx.draw_networkx_edges(G, pos, ax=self.ax_network, edgelist=edges_to_draw,
                                    width=edge_widths, edge_color=edge_colors_list_for_edges,
                                    arrowsize=7, arrowstyle='->', alpha=0.6)
-        self.ax_network.set_title('Network Topology', color='white', fontsize=12)
+        self.ax_network.set_title('Network Topology', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
         self.ax_network.autoscale_view()
         self.ax_network.set_xticks([]) # Ensure ticks are off
         self.ax_network.set_yticks([])
@@ -440,17 +470,15 @@ class NEATVisualization:
             self.ax_output.add_patch(plt.Circle(
                 (0.5, y_pos), node_radius,
                 color=color,
-                alpha=0.7 + act * 0.3
+                alpha=0.7 + act * 0.3,
+                edgecolor='dimgray',
+                linewidth=1.5
             ))
 
-            self.ax_output.text(
-                0.5, y_pos,
-                f"{['A','B','C'][i % 3]}\n{act_val:.2f}",
-                ha='center', va='center',
                 color='white', fontsize=8
             )
 
-        self.ax_output.set_title('Outputs', color='white', fontsize=12)
+        self.ax_output.set_title('Outputs', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
         self.ax_output.set_xlim(0, 1)
         self.ax_output.set_ylim(0, 1)
 
@@ -479,8 +507,16 @@ class NEATVisualization:
             # For mock data, just show the mock prediction
             prediction_text = f"Predicted:\n{current_prediction}"
 
+        # For ax_pred, the title is effectively the text itself. We can draw a box around the text area.
+        # However, set_title is not typically used for the main content of ax_pred.
+        # The text is drawn directly. To put a box around this text, we'd need to draw a patch.
+        # For now, let's skip boxing the prediction text itself, as it's not a "title".
+        # If a box is needed around the ax_pred subplot, the spine styling handles that.
+        self.ax_pred.set_title('Prediction', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
+
+
         self.ax_pred.text(0.5, 0.5, prediction_text,
-                         color=prediction_color, ha='center', va='center', fontsize=12)
+                         color=prediction_color, ha='center', va='center', fontsize=10) # Prediction text fontsize was already 10
 
         self.canvas.draw()
         plt.pause(0.01)
