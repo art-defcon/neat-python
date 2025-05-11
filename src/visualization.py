@@ -33,22 +33,22 @@ class NEATVisualization:
         self.viz_layout = QVBoxLayout(self.viz_widget)
 
         # Create matplotlib figure with multiple subplots
-        self.fig = Figure(figsize=(12, 6), facecolor='#1e1e1e')
-        gs = self.fig.add_gridspec(1, 5, width_ratios=[1, 1, 3, 1, 1])
+        self.fig = Figure(figsize=(10, 6), facecolor='#1e1e1e') # Adjusted figsize
+        gs = self.fig.add_gridspec(1, 4, width_ratios=[1, 3, 1, 1]) # Adjusted grid_spec
 
         # Create axes
-        self.ax_grid = self.fig.add_subplot(gs[0])    # Raster grid
-        self.ax_input = self.fig.add_subplot(gs[1])   # Input neurons
-        self.ax_network = self.fig.add_subplot(gs[2]) # Network topology
-        self.ax_output = self.fig.add_subplot(gs[3])  # Output neurons
-        self.ax_pred = self.fig.add_subplot(gs[4])    # Prediction text
+        # self.ax_grid = self.fig.add_subplot(gs[0])    # Raster grid - REMOVED
+        self.ax_input = self.fig.add_subplot(gs[0])   # Input neurons
+        self.ax_network = self.fig.add_subplot(gs[1]) # Network topology
+        self.ax_output = self.fig.add_subplot(gs[2])  # Output neurons
+        self.ax_pred = self.fig.add_subplot(gs[3])    # Prediction text
 
         # Set aspect for square plots
-        self.ax_grid.set_aspect('equal', adjustable='box')
+        # self.ax_grid.set_aspect('equal', adjustable='box') # REMOVED
         self.ax_input.set_aspect('equal', adjustable='box')
 
         # Configure axes
-        for ax_obj in [self.ax_grid, self.ax_input, self.ax_network, self.ax_output, self.ax_pred]: # Renamed ax to ax_obj to avoid conflict
+        for ax_obj in [self.ax_input, self.ax_network, self.ax_output, self.ax_pred]: # Renamed ax to ax_obj to avoid conflict, removed ax_grid
             ax_obj.set_facecolor('#1e1e1e')
             ax_obj.tick_params(axis='both', which='both', length=0)
             ax_obj.set_xticks([])
@@ -216,17 +216,17 @@ class NEATVisualization:
         self.inter_ax_patches = []
 
         # Clear all axes
-        for ax in [self.ax_grid, self.ax_input, self.ax_network, self.ax_output, self.ax_pred]:
+        for ax in [self.ax_input, self.ax_network, self.ax_output, self.ax_pred]: # Removed ax_grid
             ax.clear()
             ax.set_xticks([])
             ax.set_yticks([])
 
         # Ensure square aspect ratio after clearing
-        self.ax_grid.set_aspect('equal', adjustable='box')
+        # self.ax_grid.set_aspect('equal', adjustable='box') # REMOVED
         self.ax_input.set_aspect('equal', adjustable='box')
 
         # Style spines for each subplot on redraw as clear() might reset them
-        for ax_obj in [self.ax_grid, self.ax_input, self.ax_network, self.ax_output, self.ax_pred]:
+        for ax_obj in [self.ax_input, self.ax_network, self.ax_output, self.ax_pred]: # Removed ax_grid
             for spine in ax_obj.spines.values():
                 spine.set_visible(True)
                 spine.set_edgecolor('gray')
@@ -253,9 +253,8 @@ class NEATVisualization:
         if current_letter_pattern is None:
              current_letter_pattern = np.zeros((16,16)) # Default to blank if None
 
-        # 1. Draw raster grid (16x16)
-        self.ax_grid.imshow(current_letter_pattern, cmap='gray', vmin=0, vmax=1)
-        self.ax_grid.set_title('Input Pattern (16x16)', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
+        # 1. Draw raster grid (16x16) - REMOVED
+        # self.ax_grid.imshow(current_letter_pattern, cmap='gray', vmin=0, vmax=1)
 
         # 2. Draw input neurons (256 nodes)
         G_input = nx.DiGraph()
@@ -474,9 +473,6 @@ class NEATVisualization:
                 edgecolor='dimgray',
                 linewidth=1.5
             ))
-
-                color='white', fontsize=8
-            )
 
         self.ax_output.set_title('Outputs', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
         self.ax_output.set_xlim(0, 1)
