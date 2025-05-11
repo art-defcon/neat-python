@@ -325,11 +325,23 @@ class NEATVisualization:
         config_input_keys = set(self.config.genome_config.input_keys)
         config_output_keys = set(self.config.genome_config.output_keys)
         
+        print(f"[VIS] draw_network called. Genome key: {genome.key if genome else 'None'}")
+        if genome:
+            print(f"[VIS] Genome has {len(genome.nodes)} nodes and {len(genome.connections)} connections.")
+        else:
+            print("[VIS] Genome is None.")
+            # Handle drawing for None genome if necessary, or return
+            self.canvas.draw()
+            plt.pause(0.01)
+            return
+
         current_genome_node_ids = set(genome.nodes.keys())
 
         input_node_ids = sorted([n_id for n_id in current_genome_node_ids if n_id in config_input_keys])
         output_node_ids = sorted([n_id for n_id in current_genome_node_ids if n_id in config_output_keys])
         hidden_node_ids = sorted([n_id for n_id in current_genome_node_ids if n_id not in config_input_keys and n_id not in config_output_keys])
+        
+        print(f"[VIS] Categorized nodes: Inputs({len(input_node_ids)}): {input_node_ids[:5]}..., Hidden({len(hidden_node_ids)}): {hidden_node_ids[:5]}..., Outputs({len(output_node_ids)}): {output_node_ids}")
 
         layer_x_coords = {'input': 0, 'hidden': 1.5, 'output': 3.0}
 
@@ -364,6 +376,8 @@ class NEATVisualization:
             node_sizes_list.append(35)
 
         G.add_nodes_from(all_nodes_for_graph)
+        print(f"[VIS] Nodes added to G for ax_network: {len(all_nodes_for_graph)}. First 5: {all_nodes_for_graph[:5]}")
+        print(f"[VIS] Positions calculated (pos dict size {len(pos)}). Sample input pos: {pos.get(input_node_ids[0] if input_node_ids else -1, 'N/A')}, hidden: {pos.get(hidden_node_ids[0] if hidden_node_ids else -1, 'N/A')}, output: {pos.get(output_node_ids[0] if output_node_ids else -1, 'N/A')}")
 
         # Add connections
         edge_widths = []

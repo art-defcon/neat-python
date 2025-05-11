@@ -332,13 +332,11 @@ class NEATLetterClassifier(QMainWindow):
                 self.visualization.draw_network(genome=None, is_mock=False, actual_prediction="Error: No Genome", actual_letter=None) # Pass None for actual letter
                 self.update_stats_display(is_mock=True) # Show mock stats if no network
 
-            # Potentially restart evolution if auto_evolve_button was checked (existing logic)
-            # This is now handled by on_auto_evolve_toggled
-            # if self.auto_evolve_button.isChecked():
-            #     self.run_evolution() 
-            # --- End of New Startup Sequence Logic ---
-
-    # Removed draw_mock_network_wrapper and _get_mock_visualization_data as they are in visualization.py
+        # Potentially restart evolution if auto_evolve_button was checked (existing logic)
+        # This is now handled by on_auto_evolve_toggled
+        # if self.auto_evolve_button.isChecked():
+        #     self.run_evolution() 
+        # --- End of New Startup Sequence Logic ---
 
     def create_stats_panel(self):
         """Right pane - Stats & Info"""
@@ -532,16 +530,19 @@ class NEATLetterClassifier(QMainWindow):
                     actual_prediction="Error: No Pattern",
                     actual_letter=None # Pass None for actual letter
                 )
+        else:
+            pass # No best genome to visualize
 
 
         # Check if evolution finished
         if evolution_finished:
-            print("Evolution finished successfully!")
             if hasattr(self, 'evolution_timer') and self.evolution_timer:
                 self.evolution_timer.stop()
             # Uncheck the button and re-enable sliders when evolution finishes
             self.auto_evolve_button.setChecked(False) # This will call on_auto_evolve_toggled(False)
             # Optionally, display a message or take further action
+        else:
+            pass # Evolution step completed, not finished yet.
 
         # Auto-evolve if button is checked, mock data is off, and not finished
         if self.auto_evolve_button.isChecked() and not self.mock_data_enabled and not evolution_finished:
@@ -552,9 +553,11 @@ class NEATLetterClassifier(QMainWindow):
             self.evolution_timer.setSingleShot(True)
             self.evolution_timer.timeout.connect(self.run_evolution)
             self.evolution_timer.start(2000) # 2-second interval
-        elif not self.auto_evolve_button.isChecked() and hasattr(self, 'evolution_timer') and self.evolution_timer:
+        elif not self.auto_evolve_button.isChecked() and hasattr(self, 'evolution_timer') and self.evolution_timer and self.evolution_timer.isActive():
             # If button was unchecked manually, stop timer
             self.evolution_timer.stop()
+        elif self.auto_evolve_button.isChecked() and evolution_finished:
+            pass # Auto-evolve button is checked, but evolution finished. Not restarting timer.
 
 
     # Removed evaluate_genome, generate_letter, _pixmap_to_matrix, generate_letter_pattern, classify_letter, evaluate

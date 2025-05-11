@@ -2,6 +2,7 @@ import neat
 import os
 import random
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont # Import Pillow for image generation
 
 class NEATLogic:
     def __init__(self, config_path):
@@ -14,6 +15,8 @@ class NEATLogic:
         self.current_letter = None # May not be needed if evaluate handles its own letters
         self.stats_reporter = None
         self.num_evaluation_trials = 1 # Default, will be overridden by reconfigure_neat
+        self.letter_options = ['A', 'B', 'C'] # Define possible letters
+        self.image_size = (16, 16) # Define image size for letter patterns
 
     def setup_neat(self):
         """Initialize NEAT configuration and population with default settings."""
@@ -32,10 +35,24 @@ class NEATLogic:
         self.generation = 0
         self.best_fitness = 0.0
 
+        # WORKAROUND: Manually add input nodes to initial genomes if they are missing
+        if self.p and self.p.population:
+            for genome in self.p.population.values():
+                for input_key in self.config.genome_config.input_keys:
+                    if input_key not in genome.nodes:
+                        # Create a simple node gene for the input node
+                        # Input nodes don't need bias, activation, aggregation, etc.
+                        # Their values are set externally.
+                        genome.nodes[input_key] = self.config.genome_config.node_gene_type(input_key)
+                        # Optionally, set default attributes if needed by visualization/other parts
+                        # genome.nodes[input_key].bias = 0.0
+                        # genome.nodes[input_key].response = 1.0
+                        # genome.nodes[input_key].activation = 'linear' # Input nodes are typically linear
+                        # genome.nodes[input_key].aggregation = 'sum' # Or 'linear'
+
 
     def reconfigure_neat(self, params):
         """Reconfigures NEAT based on parameters from the UI and resets evolution."""
-        print(f"Reconfiguring NEAT with params: {params}") # Debug print
         # Load the base configuration again to ensure a clean slate
         new_config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                  neat.DefaultSpeciesSet, neat.DefaultStagnation,
@@ -81,16 +98,28 @@ class NEATLogic:
         self.generation = 0
         self.best_fitness = 0.0
         self.p.best_genome = None
-        print(f"NEAT reconfigured. Pop size: {self.config.pop_size}, Fitness threshold: {self.config.fitness_threshold}, Eval Trials: {self.num_evaluation_trials}")
-        print(f"Mutation rates: WMR={self.config.genome_config.weight_mutate_rate}, WRR={self.config.genome_config.weight_replace_rate}, CAP={self.config.genome_config.conn_add_prob}, NAP={self.config.genome_config.node_add_prob}")
+
+        # WORKAROUND: Manually add input nodes to initial genomes if they are missing
+        if self.p and self.p.population:
+            for genome in self.p.population.values():
+                for input_key in self.config.genome_config.input_keys:
+                    if input_key not in genome.nodes:
+                        # Create a simple node gene for the input node
+                        # Input nodes don't need bias, activation, aggregation, etc.
+                        # Their values are set externally.
+                        genome.nodes[input_key] = self.config.genome_config.node_gene_type(input_key)
+                        # Optionally, set default attributes if needed by visualization/other parts
+                        # genome.nodes[input_key].bias = 0.0
+                        # genome.nodes[input_key].response = 1.0
+                        # genome.nodes[input_key].activation = 'linear' # Input nodes are typically linear
+                        # genome.nodes[input_key].aggregation = 'sum' # Or 'linear'
 
 
     def run_evolution_step(self):
         """Run one generation of evolution."""
         if not self.p:
-            print("Population not initialized. Call setup_neat() or reconfigure_neat() first.")
             return True # Indicate finished if not set up
-
+        
         # Run NEAT's evolution for one generation.
         # The `self.evaluate` function will be called by `p.run` for all genomes.
         winner = self.p.run(self.evaluate, 1) # Run for 1 generation
@@ -112,17 +141,106 @@ class NEATLogic:
         self.training_samples = self.config.pop_size * self.num_evaluation_trials
 
         # Check if the best genome's fitness meets the threshold
-        if self.best_fitness >= self.config.fitness_threshold:
-            print(f"Solution found in generation {self.generation} with fitness {self.best_fitness:.4f}")
+        if self.p.best_genome and self.p.best_genome.fitness is not None and self.p.best_genome.fitness >= self.config.fitness_threshold:
+            self.best_fitness = self.p.best_genome.fitness # Ensure self.best_fitness is up-to-date
             return True  # Evolution finished
 
-        if winner: # p.run can return the best genome if solution is found
-             print(f"Winner found by p.run: {winner.fitness}")
-             # self.p.best_genome should already be set by p.run
-             return True
+        # If p.run returned a 'winner' (best of the generation), it doesn't mean the overall evolution is done
+        # unless the fitness threshold is met (checked above).
+        # The 'winner' variable from p.run(..., 1) is just the best genome of that single generation.
+        # So, we don't return True based on 'winner' alone here.
+
+        return False # Evolution not finished for the auto-evolve sequence
+
+    def generate_letter(self):
+        """Generates a random letter from the predefined options."""
+        return random.choice(self.letter_options)
+
+    def generate_letter_pattern(self, letter):
+        """Generates a simple pixel pattern for a given letter."""
+        try:
+            img = Image.new('L', self.image_size, color=0) # 'L' for grayscale, 0 for black background
+            d = ImageDraw.Draw(img)
+            
+            # Try to load a font. Use a default if 'arial.ttf' is not found.
+            try:
+                # Adjust font path as needed for your system
+                font_path = "/Library/Fonts/Arial.ttf" if os.path.exists("/Library/Fonts/Arial.ttf") else None
+                if font_path:
+                    font = ImageFont.truetype(font_path, int(self.image_size[1] * 0.7)) # Adjust size
+                else:
+                    font = ImageFont.load_default()
+            except Exception:
+                font = ImageFont.load_default()
+
+            # Calculate text size and position to center it
+            text_bbox = d.textbbox((0, 0), letter, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+            
+            x = (self.image_size[0] - text_width) / 2
+            y = (self.image_size[1] - text_height) / 2 - text_bbox[1] # Adjust for baseline
+
+            d.text((x, y), letter, fill=255, font=font) # 255 for white letter
+
+            # Convert image to numpy array (normalize to 0-1)
+            pattern = np.array(img).astype(float) / 255.0
+            return pattern, letter # Return pattern and the actual letter
+        except Exception as e:
+            print(f"Error generating letter pattern for '{letter}': {e}")
+            return None, letter # Return None pattern on error
+
+    def classify_letter(self, genome, letter_pattern):
+        """Classifies a letter pattern using a given genome."""
+        if not genome or letter_pattern is None:
+            return "Error", [0.0] * len(self.letter_options) # Return default error
+
+        try:
+            net = neat.nn.FeedForwardNetwork.create(genome, self.config)
+            input_data = letter_pattern.flatten().astype(float)
+
+            if len(input_data) != self.config.genome_config.num_inputs:
+                 print(f"Input data size mismatch: Expected {self.config.genome_config.num_inputs}, got {len(input_data)}")
+                 return "Error", [0.0] * len(self.letter_options)
+
+            output_activations = net.activate(input_data)
+            
+            # Ensure output_activations has the expected number of elements
+            if len(output_activations) != len(self.letter_options):
+                 print(f"Output activations size mismatch: Expected {len(self.letter_options)}, got {len(output_activations)}")
+                 # Pad or truncate output_activations to match expected size
+                 if len(output_activations) < len(self.letter_options):
+                     output_activations.extend([0.0] * (len(self.letter_options) - len(output_activations)))
+                 elif len(output_activations) > len(self.letter_options):
+                     output_activations = output_activations[:len(self.letter_options)]
 
 
-        return False # Evolution not finished
+            predicted_idx = output_activations.index(max(output_activations))
+            predicted_letter = self.letter_options[predicted_idx]
+
+            return predicted_letter, output_activations
+        except Exception as e:
+            print(f"Error classifying letter: {e}")
+            return "Error", [0.0] * len(self.letter_options) # Return default error and zero activations
+
+    def evaluate(self, genomes, config):
+        """Fitness function for NEAT evolution."""
+        for genome_id, genome in genomes:
+            successful_trials = 0
+            for _ in range(self.num_evaluation_trials):
+                letter_to_eval = self.generate_letter()
+                letter_pattern, actual_letter = self.generate_letter_pattern(letter_to_eval)
+
+                if letter_pattern is None:
+                    continue # Skip if pattern generation failed
+
+                predicted_letter, _ = self.classify_letter(genome, letter_pattern)
+
+                if predicted_letter == actual_letter:
+                    successful_trials += 1
+
+            # Fitness is the proportion of successful trials
+            genome.fitness = successful_trials / self.num_evaluation_trials if self.num_evaluation_trials > 0 else 0.0
 
     # evaluate_genome is no longer directly called by run_evolution_step,
     # but might be useful for single evaluations (e.g. randomize button).
@@ -148,110 +266,13 @@ class NEATLogic:
 
             output_activations = net.activate(input_data)
             predicted_idx = output_activations.index(max(output_activations))
-            predicted_letter = ['A', 'B', 'C'][predicted_idx % 3]
+            predicted_letter = self.letter_options[predicted_idx] # Use self.letter_options
 
-            return 1.0 if predicted_letter == actual_letter else 0.0
-        except Exception:
-            return 0.0
+            if predicted_letter == actual_letter:
+                return 1.0 # Return 1.0 for a successful single trial
+            else:
+                return 0.0 # Return 0.0 for a failed single trial
 
-    def generate_letter(self):
-        """Generate random A/B/C pattern"""
-        return random.choice(['A', 'B', 'C'])
-
-    def _pixmap_to_matrix(self, pixmap, actual_letter):
-        """Convert QPixmap to 16x16 binary matrix"""
-        from PyQt5.QtGui import QImage # Import here to avoid circular dependency
-        image = pixmap.toImage()
-        matrix = []
-        for y in range(16):
-            row = []
-            for x in range(16):
-                pixel = image.pixelColor(x, y)
-                row.append(0 if pixel.lightness() > 127 else 1)
-            matrix.append(row)
-        return np.array(matrix), actual_letter
-
-    def generate_letter_pattern(self, letter):
-        """Generate 16x16 pattern from random system font for a given letter"""
-        from PyQt5.QtGui import QFont, QFontDatabase, QPainter, QPixmap # Import here to avoid circular dependency
-        from PyQt5.QtCore import Qt # Import here to avoid circular dependency
-
-        # Get available fonts (excluding symbol fonts)
-        fonts = [f for f in QFontDatabase().families()
-                if not any(x in f.lower() for x in ['symbol','dingbat','emoji'])]
-        selected_font = QFont(random.choice(fonts[:20]))  # Use first 20 for consistency
-
-        # Render letter at high resolution
-        selected_font.setPixelSize(64)
-        pixmap = QPixmap(64, 64)
-        pixmap.fill(Qt.white)
-        painter = QPainter(pixmap)
-        painter.setFont(selected_font)
-        painter.drawText(pixmap.rect(), Qt.AlignCenter, letter)
-        painter.end()
-
-        # Scale down to 16x16 and convert to matrix
-        return self._pixmap_to_matrix(pixmap.scaled(
-            16, 16, Qt.KeepAspectRatio, Qt.SmoothTransformation), letter)
-
-    def classify_letter(self, genome, letter_pattern):
-        """Classify letter using NEAT network based on a given letter_pattern"""
-        if not genome or letter_pattern is None: return "?"
-
-        try:
-            net = neat.nn.FeedForwardNetwork.create(genome, self.config)
-            input_data = letter_pattern.flatten().astype(float)
-
-            if len(input_data) != self.config.genome_config.num_inputs:
-                return "?", []
-
-            output_activations = net.activate(input_data)
-            predicted_idx = output_activations.index(max(output_activations))
-            return ['A', 'B', 'C'][predicted_idx % 3], output_activations
-        except Exception as e:
-            # print(f"Error classifying with genome {genome.key if genome else 'None'}: {e}")
-            return "?", [] # Return empty list for activations on error
-
-    def evaluate(self, genomes, config):
-        """
-        NEAT evaluation function.
-        Evaluates each genome in the `genomes` list based on its performance
-        over `self.num_evaluation_trials` random letter classifications.
-        The fitness is the average success rate.
-        """
-        for genome_id, genome in genomes:
-            successful_trials = 0.0
-            if self.num_evaluation_trials <= 0:
-                genome.fitness = 0.0
-                continue
-
-            for _ in range(self.num_evaluation_trials):
-                current_challenge_letter = self.generate_letter()
-                letter_pattern, actual_letter = self.generate_letter_pattern(current_challenge_letter)
-
-                if letter_pattern is None:
-                    # If pattern generation fails, this trial is not successful.
-                    # Depending on desired behavior, could skip or count as failure.
-                    # For now, let's assume it doesn't contribute to success.
-                    continue
-
-                input_data = letter_pattern.flatten().astype(float)
-                # Ensure input data size matches network's expected input size
-                if len(input_data) != config.genome_config.num_inputs:
-                    # print(f"Warning: Input data size {len(input_data)} for genome {genome_id} does not match num_inputs {config.genome_config.num_inputs}")
-                    continue # Skip this trial if input size is wrong
-
-                try:
-                    net = neat.nn.FeedForwardNetwork.create(genome, config)
-                    output_activations = net.activate(input_data)
-                    predicted_idx = output_activations.index(max(output_activations))
-                    predicted_letter = ['A', 'B', 'C'][predicted_idx % 3] # Assuming 3 output classes
-
-                    if predicted_letter == actual_letter:
-                        successful_trials += 1.0
-                except Exception as e:
-                    # print(f"Error evaluating genome {genome_id} during trial: {e}")
-                    # Count as a failed trial or skip, here we just don't increment success
-                    pass
-            
-            genome.fitness = successful_trials / self.num_evaluation_trials
+        except Exception as e: # Corrected indentation
+            print(f"Error in evaluate_genome: {e}")
+            return 0.0 # Return 0.0 on error
