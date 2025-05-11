@@ -15,7 +15,7 @@ class NEATLogic:
         self.current_letter = None # May not be needed if evaluate handles its own letters
         self.stats_reporter = None
         self.num_evaluation_trials = 1 # Default, will be overridden by reconfigure_neat
-        self.letter_options = ['A', 'B', 'C'] # Define possible letters
+        self.letter_options = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'] # Define possible letters
         self.image_size = (16, 16) # Define image size for letter patterns
 
     def setup_neat(self):
@@ -40,15 +40,10 @@ class NEATLogic:
             for genome in self.p.population.values():
                 for input_key in self.config.genome_config.input_keys:
                     if input_key not in genome.nodes:
-                        # Create a simple node gene for the input node
-                        # Input nodes don't need bias, activation, aggregation, etc.
-                        # Their values are set externally.
-                        genome.nodes[input_key] = self.config.genome_config.node_gene_type(input_key)
-                        # Optionally, set default attributes if needed by visualization/other parts
-                        # genome.nodes[input_key].bias = 0.0
-                        # genome.nodes[input_key].response = 1.0
-                        # genome.nodes[input_key].activation = 'linear' # Input nodes are typically linear
-                        # genome.nodes[input_key].aggregation = 'sum' # Or 'linear'
+                        # Create and initialize the node gene properly
+                        node_gene = self.config.genome_config.node_gene_type(input_key)
+                        node_gene.init_attributes(self.config.genome_config) # Initialize attributes like bias, response, etc.
+                        genome.nodes[input_key] = node_gene
 
 
     def reconfigure_neat(self, params):
@@ -104,15 +99,10 @@ class NEATLogic:
             for genome in self.p.population.values():
                 for input_key in self.config.genome_config.input_keys:
                     if input_key not in genome.nodes:
-                        # Create a simple node gene for the input node
-                        # Input nodes don't need bias, activation, aggregation, etc.
-                        # Their values are set externally.
-                        genome.nodes[input_key] = self.config.genome_config.node_gene_type(input_key)
-                        # Optionally, set default attributes if needed by visualization/other parts
-                        # genome.nodes[input_key].bias = 0.0
-                        # genome.nodes[input_key].response = 1.0
-                        # genome.nodes[input_key].activation = 'linear' # Input nodes are typically linear
-                        # genome.nodes[input_key].aggregation = 'sum' # Or 'linear'
+                        # Create and initialize the node gene properly
+                        node_gene = self.config.genome_config.node_gene_type(input_key)
+                        node_gene.init_attributes(self.config.genome_config) # Initialize attributes like bias, response, etc.
+                        genome.nodes[input_key] = node_gene
 
 
     def run_evolution_step(self):
