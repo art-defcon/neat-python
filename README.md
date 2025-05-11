@@ -10,7 +10,7 @@ This application demonstrates the NeuroEvolution of Augmenting Topologies (NEAT)
     - **Rasterization**: 8x6 pixel grid representation of letters
     - **Classification**: NEAT network evaluates input patterns and outputs A/B/C predictions
 - **Frontend**:
-    - **Framework/Library**: Tkinter (Python's standard GUI library)
+    - **Framework/Library**: PyQT
     - **Language**: Python 3.10+
     - **UI Components**: 
         - Three-pane layout with interactive controls
@@ -22,6 +22,25 @@ This application demonstrates the NeuroEvolution of Augmenting Topologies (NEAT)
     - **Network Graph**: Using NetworkX + Matplotlib for dynamic node/edge rendering
     - **Pixel Grid**: 8x6 rasterized letter display
     - **Activation Visualization**: Color intensity for neuron activations
+
+
+### New Requirements
+To run the application, you'll need:
+```bash
+pip install PyQt5
+```
+
+### Basic Usage
+The PyQt version maintains all previous functionality while offering:
+- Smoother animations for network visualization
+- More responsive UI controls
+- Better high-DPI display support
+
+### Backward Compatibility
+- The core NEAT algorithm remains unchanged
+- Existing saved networks and configurations remain compatible
+- The UI layout follows the same three-pane design
+- Keyboard shortcuts and mouse interactions remain the same
 
 ## Key Features
 - **Interactive NEAT Parameters**: Sliders and inputs for Mutation Rate, Population Size, and Fitness Threshold.
