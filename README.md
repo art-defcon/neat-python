@@ -1,104 +1,102 @@
-NEAT Letter Classifier
+# NEAT Letter Classifier
 
 ## Project Overview
-This application demonstrates the NeuroEvolution of Augmenting Topologies (NEAT) algorithm applied to a letter classification task. The application features a dynamic, interactive interface for controlling NEAT parameters, visualizing the evolving neural network in real-time, and observing its performance.
+This application demonstrates the NeuroEvolution of Augmenting Topologies (NEAT) algorithm applied to a letter classification task. The application features a dynamic, interactive interface for controlling NEAT parameters, visualizing the evolving neural network in real-time, and observing its performance. Users can configure settings like population size, mutation rates, and evaluation trials before starting an automated evolution process.
 
 ## Technology Stack
 - **Core Logic**:
     - **NEAT Algorithm**: Implemented using [neat-python](https://github.com/CodeReclaimers/neat-python) library
     - **Letter Generation**: Randomized font selection + random A/B/C generation
-    - **Rasterization**: 8x6 pixel grid representation of letters
+    - **Rasterization**: 16x16 pixel grid representation of letters (Note: `neat_logic.py` uses 16x16, `neat_config` num_inputs is 256).
     - **Classification**: NEAT network evaluates input patterns and outputs A/B/C predictions
 - **Frontend**:
-    - **Framework/Library**: PyQT
+    - **Framework/Library**: PyQt5
     - **Language**: Python 3.10+
-    - **UI Components**: 
-        - Three-pane layout with interactive controls
-        - Sliders for Mutation Rate, Population Size, Fitness Threshold
-        - Real-time network visualization
-        - Live classification results
-    - **Styling**: Dark theme with VS Code-like aesthetics
+    - **UI Components**:
+        - Three-pane layout with interactive controls.
+        - Grouped "Evolution Settings" with sliders for Population Size, Fitness Threshold, Evaluation Trials per Network, and various Mutation Rates (Weight Mutate, Weight Replace, Connection Add, Node Add).
+        - Real-time network visualization.
+        - Live classification results.
+    - **Styling**: Dark theme with VS Code-like aesthetics.
 - **Visualization**:
-    - **Network Graph**: Using NetworkX + Matplotlib for dynamic node/edge rendering
-    - **Pixel Grid**: 8x6 rasterized letter display
-    - **Activation Visualization**: Color intensity for neuron activations
+    - **Network Graph**: Using NetworkX + Matplotlib for dynamic node/edge rendering.
+    - **Pixel Grid**: 16x16 rasterized letter display.
+    - **Activation Visualization**: Color intensity for neuron activations.
 
-
-### New Requirements
+### Requirements
 To run the application, you'll need:
 ```bash
-pip install PyQt5
+pip install PyQt5 matplotlib neat-python networkx numpy
 ```
 
 ### Basic Usage
-The PyQt version maintains all previous functionality while offering:
-- Smoother animations for network visualization
-- More responsive UI controls
-- Better high-DPI display support
-
-### Backward Compatibility
-- The core NEAT algorithm remains unchanged
-- Existing saved networks and configurations remain compatible
-- The UI layout follows the same three-pane design
-- Keyboard shortcuts and mouse interactions remain the same
+The PyQt version offers:
+- Interactive configuration of NEAT parameters before starting evolution.
+- Smoother animations for network visualization.
+- More responsive UI controls.
+- Better high-DPI display support.
 
 ## Key Features
-- **Interactive NEAT Parameters**: Sliders and inputs for Mutation Rate, Population Size, and Fitness Threshold.
+- **Interactive NEAT Parameters**:
+    - Grouped "Evolution Settings" in the left pane.
+    - Sliders for Population Size, Fitness Threshold, Evaluation Trials per Network.
+    - Sliders for specific mutation rates: Weight Mutate, Weight Replace, Connection Add, Node Add.
+    - Descriptive text for each parameter slider.
+    - Settings are locked during auto-evolution.
 - **Three-Pane Layout**:
-    - **Left Pane**: NEAT parameter controls.
-    - **Center Pane Visualization Details**:
-        The center pane provides a left-to-right visualization of the network's processing flow:
-        1.  **Rasterized Letter Input (Far Left):**
-            *   Displays the current input pattern (e.g., a simplified 'A' 'B or 'C') as an 8x6 grid of pixels. Active pixels are colored to form the letter's shape.
-        2.  **Input Neuron Layer (To the right of Rasterized Letter):**
-            *   The first layer of the neural network graph, consisting of 48 nodes, one for each pixel in the input grid.
-            *   These nodes visually represent the input neurons, and their activation (corresponding to pixel values) can be indicated by color intensity.
-        3.  **Network Topology - Hidden Layers & Connections (Center Area):**
-            *   The main dynamic area showing all evolved hidden neurons and the connections between all neuron types (input-hidden, hidden-hidden, hidden-output, input-output).
-            *   **Connection Weights:** Visualized by line thickness (strength) and color (positive/negative).
-            *   **Neuron Activations:** Hidden neuron activation levels are shown by color intensity.
-        4.  **Output Neuron Layer (To the right of Network Topology):**
-            *   The final layer of the graph, with 3 nodes for the A, B, C classification task.
-            *   Output neuron activations are clearly visualized (e.g., by color intensity or size) to indicate the network's decision-making process.
-        5.  **Live Classification Result (Far Right):**
-            *   A text display showing the final predicted letter (e.g., "Predicted: A"), based on the output neuron with the highest activation.
-        This entire visualization updates in real-time as the network evolves and processes new inputs.
-    - **Right Pane**:
-        - "Auto-Evolute" toggle switch for continuous evolution and classification.
-        - Display of Generation, Best Fitness, and Training Samples.
+    - **Left Pane ("Evolution Settings" & Controls)**:
+        - NEAT parameter configuration group.
+        - "Start/Stop Auto-Evolve" button for continuous evolution.
+        - "Randomize New Letter" button (for manual stepping when not auto-evolving).
+        - "Mock Data" toggle.
+    - **Center Pane (Visualization Details)**:
+        1.  **Rasterized Letter Input (Far Left):** Displays the current input pattern as a 16x16 grid.
+        2.  **Input Neuron Layer (To the right of Rasterized Letter):** 256 input nodes.
+        3.  **Network Topology - Hidden Layers & Connections (Center Area):** Dynamic area showing hidden neurons and connections. Connection weights visualized by line thickness/color; neuron activations by color intensity.
+        4.  **Output Neuron Layer (To the right of Network Topology):** 3 nodes for A, B, C classification. Activations visualized.
+        5.  **Live Classification Result (Far Right):** Text display of the predicted letter.
+    - **Right Pane (Stats & Info)**:
+        - Display of Generation, Best Fitness (individual), Average Population Fitness.
+        - Display of "Total Evaluations (Last Gen)".
         - Compact Fitness History graph.
 - **Dark Theme**: Professional, VS Code-like appearance.
-- **Data Correction**: Modal dialog for users to input and label training samples.
+- **Data Correction**: Modal dialog for users to input and label training samples (if this feature is still active/relevant).
 
-## ASCII Wireframe Layout
+## ASCII Wireframe Layout (Conceptual Update)
 ```
-+---------------------------------------------------+
-| NEAT Letter Classifier (Dark Theme)              |
-+-----------+-----------------------+---------------+
-| Controls  | Network Visualization | Stats & Info  |
-|           |                       |               |
-| [Slider]  | +-----------------+   | [Toggle]      |
-| Mutation  | | Rasterized      |   | Generation:   |
-| Rate      | | Input Grid      |   | Best Fitness: |
-|           | +--------+--------+   | Training Samples: |
-| [Slider]  |          |           |               |
-| Population|          v           | [Graph]       |
-| Size      | +-----------------+   |               |
-|           | | Input Neurons   |   |               |
-| [Slider]  | | (48 Nodes)      |   |               |
-| Fitness   | +--------+--------+   |               |
-| Threshold |          |           |               |
-|           |          v           |               |
-|           | +-----------------+   |               |
-|           | | Hidden Layers   |   |               |
-|           | | (Dynamic Nodes) |   |               |
-|           | +--------+--------+   |               |
-|           |          |           |               |
-|           |          v           |               |
-|           | +-----------------+   |               |
-|           | | Output Neurons  |   |               |
-|           | | (A/B/C - 3 Nodes)|  |               |
-|           | +--------+--------+   |               |
-|           |          |           |               |
-|           |          v           |               |
-|           | +-----------------+   |               |
++-----------------------------------------------------------------+
+| NEAT Letter Classifier (Dark Theme)                             |
++---------------------------+-----------------------+-------------+
+| Evolution Settings & Ctrl | Network Visualization | Stats & Info|
+|---------------------------|                       |-------------|
+| [GroupBox: Evo Settings]  | +-----------------+   | Generation: |
+|  Population Size: [Sl]    | | Rasterized      |   | Best Fit:   |
+|  Fitness Thresh: [Sl]     | | Input (16x16)   |   | Avg Pop Fit:|
+|  Eval Trials: [Sl]        | +--------+--------+   | Tot Evals:  |
+|  Weight Mutate: [Sl]      |          |           |             |
+|  Weight Replace: [Sl]     |          v           | [Graph]     |
+|  Conn Add Prob: [Sl]      | +-----------------+   | Fitness     |
+|  Node Add Prob: [Sl]      | | Input Neurons   |   | History     |
+|  [Instructional Text]     | | (256 Nodes)     |   |             |
+|                           | +--------+--------+   |             |
+| [Button:Start/Stop AutoEV]|          |           |             |
+|---------------------------|          v           |             |
+| [Button:Randomize Letter] | +-----------------+   |             |
+| [Checkbox:Mock Data]      | | Hidden Layers   |   |             |
+|                           | | (Dynamic Nodes) |   |             |
+|                           | +--------+--------+   |             |
+|                           |          |           |             |
+|                           |          v           |             |
+|                           | +-----------------+   |             |
+|                           | | Output Neurons  |   |             |
+|                           | | (A/B/C - 3 Nodes)|  |             |
+|                           | +--------+--------+   |             |
+|                           |          |           |             |
+|                           |          v           |             |
+|                           | +-----------------+   |             |
+|                           | | Prediction Text |   |             |
+|                           | +-----------------+   |             |
++---------------------------+-----------------------+-------------+
+```
+
+For more details on the NEAT algorithm concepts like population and generations, and the planned implementation changes, please refer to `about_neat.md` and `implementation.md` respectively.
