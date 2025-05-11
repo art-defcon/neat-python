@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import os
 
 # Import refactored modules
-from src.visualization import NEATVisualization
-from src.neat_logic import NEATLogic
+from visualization import NEATVisualization
+from neat_logic import NEATLogic
 
 class NEATLetterClassifier(QMainWindow):
     def __init__(self):
@@ -32,8 +32,7 @@ class NEATLetterClassifier(QMainWindow):
         self.setCentralWidget(self.main_widget)
         self.main_layout = QHBoxLayout(self.main_widget)
 
-        self.mock_data_enabled = True # Initialize state variable
-
+        self.mock_data_enabled = False # Initialize state variable - Changed to False
         # Instantiate refactored components
         self.neat_logic = NEATLogic(os.path.join(os.path.dirname(__file__), 'neat_config'))
         # NEAT setup
@@ -104,7 +103,7 @@ class NEATLetterClassifier(QMainWindow):
         # Mock Data toggle
         self.mock_data_checkbox = QCheckBox("Mock Data")
         self.mock_data_checkbox.setStyleSheet("color: white;")
-        self.mock_data_checkbox.setChecked(True) # Default to True
+        self.mock_data_checkbox.setChecked(False) # Default to False - Changed
         self.mock_data_checkbox.stateChanged.connect(self.on_mock_data_toggled)
         control_layout.addWidget(self.mock_data_checkbox)
 
@@ -122,28 +121,52 @@ class NEATLetterClassifier(QMainWindow):
             self.update_stats_display(is_mock=True) # Update stats for mock data
         else:
             self.auto_evolve.setEnabled(True)
-            # Potentially restart evolution if auto_evolve was checked
+            
+            # --- New Startup Sequence Logic ---
+            initial_genome = None
+            if self.neat_logic.p and self.neat_logic.p.population:
+                # Get the first genome from the initialized population as the "starter network"
+                initial_genome = next(iter(self.neat_logic.p.population.values()), None)
+
+            if initial_genome:
+                # 1. Randomize a letter
+                random_actual_letter = self.neat_logic.generate_letter()
+
+                # 2. Rasterize it
+                letter_pattern, _ = self.neat_logic.generate_letter_pattern(random_actual_letter)
+
+                if letter_pattern is not None:
+                    # 3. Get network output and classification (using modified neat_logic.classify_letter)
+                    # classify_letter now returns (predicted_char, activations_list)
+                    predicted_letter, output_activations = self.neat_logic.classify_letter(initial_genome, letter_pattern)
+                    
+                    # 4. Determine correctness
+                    is_correct = (predicted_letter == random_actual_letter)
+
+                    # 5. Update visualization (using modified draw_network)
+                    self.visualization.draw_network(
+                        genome=initial_genome,
+                        is_mock=False,
+                        actual_letter_pattern=letter_pattern,
+                        actual_output_activations=output_activations,
+                        actual_prediction=predicted_letter,
+                        actual_letter=random_actual_letter, # Pass the actual letter
+                        is_correct=is_correct
+                    )
+                else:
+                    # Handle case where letter_pattern could not be generated
+                    self.visualization.draw_network(genome=initial_genome, is_mock=False, actual_prediction="Error: No Pattern", actual_letter=None) # Pass None for actual letter
+
+                self.update_stats_display() # Update stats for real data
+            else:
+                # Handle case: No initial genome found
+                self.visualization.draw_network(genome=None, is_mock=False, actual_prediction="Error: No Genome", actual_letter=None) # Pass None for actual letter
+                self.update_stats_display(is_mock=True) # Show mock stats if no network
+
+            # Potentially restart evolution if auto_evolve was checked (existing logic)
             if self.auto_evolve.isChecked():
                 self.run_evolution()
-            else: # Or just draw the current best real genome if not auto-evolving
-                if self.neat_logic.p and self.neat_logic.p.best_genome:
-                    # Need to generate a letter pattern for visualization in non-mock mode
-                    self.neat_logic.current_letter = self.neat_logic.generate_letter() # Generate a letter
-                    letter_pattern, _ = self.neat_logic.generate_letter_pattern(self.neat_logic.current_letter)
-                    output_activations = self.neat_logic.classify_letter(self.neat_logic.p.best_genome, letter_pattern) # Get activations
-                    prediction = self.neat_logic.classify_letter(self.neat_logic.p.best_genome, letter_pattern) # Get prediction
-
-                    self.visualization.draw_network(
-                        genome=self.neat_logic.p.best_genome,
-                        is_mock=False,
-                        mock_letter_pattern=letter_pattern, # Pass real pattern here
-                        mock_output_activations=output_activations, # Pass real activations
-                        mock_prediction=prediction # Pass real prediction
-                    )
-                    self.update_stats_display() # Update stats for real data
-                else: # If no best_genome, maybe draw an empty real network or a default one
-                    # This case might need a default empty genome visualization
-                    pass # For now, do nothing if no best genome and not auto-evolving
+            # --- End of New Startup Sequence Logic ---
 
     # Removed draw_mock_network_wrapper and _get_mock_visualization_data as they are in visualization.py
 
@@ -217,9 +240,10 @@ class NEATLetterClassifier(QMainWindow):
 
             # Update fitness history graph
             # Need to get fitness history data from neat_logic
-            # Assuming neat_logic has a list like self.fitness_history
-            if hasattr(self.neat_logic.p, 'reporters') and isinstance(self.neat_logic.p.reporters[-1], neat.StatisticsReporter):
-                 stats_reporter = self.neat_logic.p.reporters[-1]
+            # Access the stored StatisticsReporter
+            stats_reporter = self.neat_logic.stats_reporter
+
+            if stats_reporter and hasattr(stats_reporter, 'num_generations') and hasattr(stats_reporter, 'most_fit_genomes'):
                  generations = range(stats_reporter.num_generations)
                  best_fitness_history = [c.fitness for c in stats_reporter.most_fit_genomes]
 
@@ -252,19 +276,34 @@ class NEATLetterClassifier(QMainWindow):
 
         # Update visualization with best genome from NEATLogic
         if self.neat_logic.p and self.neat_logic.p.best_genome:
-             # Need to generate a letter pattern for visualization
-            self.neat_logic.current_letter = self.neat_logic.generate_letter() # Generate a letter
-            letter_pattern, _ = self.neat_logic.generate_letter_pattern(self.neat_logic.current_letter)
-            output_activations = self.neat_logic.classify_letter(self.neat_logic.p.best_genome, letter_pattern) # Get activations
-            prediction = self.neat_logic.classify_letter(self.neat_logic.p.best_genome, letter_pattern) # Get prediction
+            # Generate a letter for this evolution step
+            current_eval_letter = self.neat_logic.generate_letter() # Use a new variable to avoid confusion with self.neat_logic.current_letter used in eval
+            letter_pattern, _ = self.neat_logic.generate_letter_pattern(current_eval_letter)
 
-            self.visualization.draw_network(
-                genome=self.neat_logic.p.best_genome,
-                is_mock=False,
-                mock_letter_pattern=letter_pattern, # Pass real pattern here
-                mock_output_activations=output_activations, # Pass real activations
-                mock_prediction=prediction # Pass real prediction
-            )
+            if letter_pattern is not None:
+                # Get activations and prediction using the best_genome
+                # classify_letter now returns (predicted_char, activations_list)
+                predicted_letter, output_activations = self.neat_logic.classify_letter(self.neat_logic.p.best_genome, letter_pattern)
+                
+                is_correct = (predicted_letter == current_eval_letter)
+
+                self.visualization.draw_network(
+                    genome=self.neat_logic.p.best_genome,
+                    is_mock=False,
+                    actual_letter_pattern=letter_pattern,
+                    actual_output_activations=output_activations,
+                    actual_prediction=predicted_letter,
+                    actual_letter=current_eval_letter, # Pass the actual letter
+                    is_correct=is_correct
+                )
+            else:
+                # Handle error if letter_pattern is None
+                 self.visualization.draw_network(
+                    genome=self.neat_logic.p.best_genome,
+                    is_mock=False,
+                    actual_prediction="Error: No Pattern",
+                    actual_letter=None # Pass None for actual letter
+                )
 
 
         # Check if evolution finished

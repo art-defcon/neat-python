@@ -12,6 +12,7 @@ class NEATLogic:
         self.best_fitness = 0
         self.training_samples = 0
         self.current_letter = None
+        self.stats_reporter = None # Add attribute to store StatisticsReporter
 
     def setup_neat(self):
         """Initialize NEAT configuration and population"""
@@ -22,7 +23,8 @@ class NEATLogic:
         # Create population
         self.p = neat.Population(self.config)
         self.p.add_reporter(neat.StdOutReporter(True))
-        self.p.add_reporter(neat.StatisticsReporter())
+        self.stats_reporter = neat.StatisticsReporter() # Create and store instance
+        self.p.add_reporter(self.stats_reporter) # Add the stored instance
 
     def run_evolution_step(self):
         """Run one step of the evolution"""
@@ -86,7 +88,7 @@ class NEATLogic:
         from PyQt5.QtGui import QImage # Import here to avoid circular dependency
         image = pixmap.toImage()
         matrix = []
-        for y in range(6):
+        for y in range(8):
             row = []
             for x in range(6):
                 pixel = image.pixelColor(x, y)
@@ -95,7 +97,7 @@ class NEATLogic:
         return np.array(matrix), actual_letter
 
     def generate_letter_pattern(self, letter):
-        """Generate 6x6 pattern from random system font for a given letter"""
+        """Generate 8x6 pattern from random system font for a given letter"""
         from PyQt5.QtGui import QFont, QFontDatabase, QPainter, QPixmap # Import here to avoid circular dependency
         from PyQt5.QtCore import Qt # Import here to avoid circular dependency
 
@@ -113,9 +115,9 @@ class NEATLogic:
         painter.drawText(pixmap.rect(), Qt.AlignCenter, letter)
         painter.end()
 
-        # Scale down to 6x6 and convert to matrix
+        # Scale down to 8x6 and convert to matrix
         return self._pixmap_to_matrix(pixmap.scaled(
-            6, 6, Qt.KeepAspectRatio, Qt.SmoothTransformation), letter)
+            6, 8, Qt.KeepAspectRatio, Qt.SmoothTransformation), letter)
 
     def classify_letter(self, genome, letter_pattern):
         """Classify letter using NEAT network based on a given letter_pattern"""
@@ -126,14 +128,14 @@ class NEATLogic:
             input_data = letter_pattern.flatten().astype(float)
 
             if len(input_data) != self.config.genome_config.num_inputs:
-                return "?"
+                return "?", []
 
             output_activations = net.activate(input_data)
             predicted_idx = output_activations.index(max(output_activations))
-            return ['A', 'B', 'C'][predicted_idx % 3]
+            return ['A', 'B', 'C'][predicted_idx % 3], output_activations
         except Exception as e:
             # print(f"Error classifying with genome {genome.key if genome else 'None'}: {e}")
-            return "?"
+            return "?", [] # Return empty list for activations on error
 
     def evaluate(self, genomes, config):
         """NEAT evaluation function - evaluates each genome against the current letter"""

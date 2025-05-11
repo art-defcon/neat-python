@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+from matplotlib.patches import ConnectionPatch
 import networkx as nx
 import numpy as np
 import random
@@ -21,6 +22,7 @@ class NEATVisualization:
         self.ax_pred = None
         self.canvas = None
         self.current_letter = None # This should ideally come from the main app logic
+        self.inter_ax_patches = [] # To store ConnectionPatch objects
 
     def create_visualization(self):
         """Center pane - Network Visualization"""
@@ -79,8 +81,10 @@ class NEATVisualization:
             [1, 0, 0, 0, 0, 1],
             [1, 1, 1, 1, 1, 1],
             [1, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 1],
             [1, 0, 0, 0, 0, 1]
-        ]) # 6x6
+        ]) # 8x6
 
         # 2. Mock Network Genome
         # Create a new genome config if not available (should be from self.config)
@@ -183,8 +187,19 @@ class NEATVisualization:
 
         return mock_genome, mock_letter_pattern, mock_output_activations, mock_prediction
 
-    def draw_network(self, genome, is_mock=False, mock_letter_pattern=None, mock_output_activations=None, mock_prediction=None):
+    def draw_network(self, genome, is_mock=False,
+                       mock_letter_pattern=None, mock_output_activations=None, mock_prediction=None,
+                       actual_letter_pattern=None, actual_output_activations=None, actual_prediction=None,
+                       actual_letter=None, # Added actual_letter parameter
+                       is_correct=None):
         """Draw complete visualization including raster grid, network, and prediction"""
+        # Clear previous inter-axes connection patches
+        if hasattr(self, 'inter_ax_patches'):
+            for patch in self.inter_ax_patches:
+                if patch in self.fig.artists:
+                    patch.remove()
+        self.inter_ax_patches = []
+
         # Clear all axes
         for ax in [self.ax_grid, self.ax_input, self.ax_network, self.ax_output, self.ax_pred]:
             ax.clear()
@@ -202,47 +217,29 @@ class NEATVisualization:
             # genome is already the mock_genome passed in
         else:
             # This is for the real NEAT data path
-            # Need to get the current letter pattern from the main app or pass it in
-            # For now, using a placeholder or assuming self.current_letter is set
-            if self.current_letter:
-                 current_letter_pattern, _ = self.generate_letter_pattern(self.current_letter)
-            else:
-                 current_letter_pattern = np.zeros((6,6)) # Default to blank if no letter
-
-            # Calculate real activations and prediction if needed (or they are passed if pre-calculated)
-            # This part needs access to the NEAT population/config, which should be passed or accessed differently
-            # For now, using placeholder logic
-            try:
-                import neat # Assuming neat is available
-                net = neat.nn.FeedForwardNetwork.create(genome, self.config)
-                input_pattern_flat = current_letter_pattern.flatten().astype(float)
-                if len(input_pattern_flat) == self.config.genome_config.num_inputs:
-                    current_output_activations = net.activate(input_pattern_flat)
-                else:
-                    current_output_activations = [0.0] * self.config.genome_config.num_outputs
-            except Exception:
-                current_output_activations = [0.0] * self.config.genome_config.num_outputs
-
-            # This also needs access to the classification logic, which should be passed or accessed
-            current_prediction = self.classify_letter(genome, current_letter_pattern) # Needs letter pattern
+            # Use the directly passed actual_... parameters
+            current_letter_pattern = actual_letter_pattern
+            current_output_activations = actual_output_activations
+            current_prediction = actual_prediction
+            # is_correct is passed directly and will be used for coloring the prediction text
 
         # Ensure current_letter_pattern is not None before imshow
         if current_letter_pattern is None:
-             current_letter_pattern = np.zeros((6,6)) # Default to blank if None
+             current_letter_pattern = np.zeros((8,6)) # Default to blank if None
 
-        # 1. Draw raster grid (6x6)
+        # 1. Draw raster grid (8x6)
         self.ax_grid.imshow(current_letter_pattern, cmap='gray', vmin=0, vmax=1)
-        self.ax_grid.set_title('Input Pattern (6x6)', color='white', fontsize=12)
+        self.ax_grid.set_title('Input Pattern (8x6)', color='white', fontsize=12)
 
-        # 2. Draw input neurons (36 nodes)
+        # 2. Draw input neurons (48 nodes)
         G_input = nx.DiGraph()
         # Ensure input nodes are added based on the actual config
         num_inputs_cfg = self.config.genome_config.num_inputs
         G_input.add_nodes_from(range(num_inputs_cfg))
 
-        # Calculate positions for input neurons in an 6x6 grid
+        # Calculate positions for input neurons in an 8x6 grid
         input_pos = {}
-        rows, cols = 6, 6
+        rows, cols = 8, 6
         # Adjust spacing and centering for the grid
         x_spacing = 1.0 / (cols - 1) if cols > 1 else 0
         y_spacing = 1.0 / (rows - 1) if rows > 1 else 0
@@ -370,7 +367,54 @@ class NEATVisualization:
         # Set margins for the network plot to give some space
         self.ax_network.margins(0.1)
 
+        # --- Add ConnectionPatches between subplots for individual nodes ---
 
+        # 1. Connect each visual input neuron in ax_input to its corresponding genome input node in ax_network
+        # input_pos is for ax_input, pos is for ax_network
+        # self.config.genome_config.input_keys are sorted, e.g., [-1, -2, ..., -36]
+        # We assume the 0th visual input neuron (input_pos[0]) corresponds to input_keys[0]
+        genome_input_keys = sorted(list(self.config.genome_config.input_keys)) # Ensure sorted
+        if input_node_ids and len(input_pos) == len(genome_input_keys):
+            for i in range(len(genome_input_keys)):
+                ax_input_coord = input_pos[i] # Coordinate of the i-th visual input node in ax_input
+                network_input_node_id = genome_input_keys[i]
+                if network_input_node_id in pos: # Ensure the node exists in the network drawing
+                    ax_network_coord = pos[network_input_node_id]
+
+                    con = ConnectionPatch(xyA=ax_input_coord, xyB=ax_network_coord,
+                                          coordsA="data", coordsB="data",
+                                          axesA=self.ax_input, axesB=self.ax_network,
+                                          color="gray", linestyle=":", alpha=0.4, linewidth=0.5, zorder=-1)
+                    self.fig.add_artist(con)
+                    self.inter_ax_patches.append(con)
+
+        # 2. Connect each genome output node in ax_network to its corresponding visual circle in ax_output
+        genome_output_keys = sorted(list(self.config.genome_config.output_keys)) # Ensure sorted, e.g. [0, 1, 2]
+        if output_node_ids and current_output_activations is not None and len(genome_output_keys) == len(current_output_activations):
+            num_outputs_cfg_vis = len(current_output_activations)
+            if num_outputs_cfg_vis > 0:
+                node_radius_out = 0.10
+                spacing_between_nodes_out = node_radius_out * 0.5
+                total_height_nodes_out = num_outputs_cfg_vis * (2 * node_radius_out) + max(0, num_outputs_cfg_vis - 1) * spacing_between_nodes_out
+                start_y_out = 0.5 + total_height_nodes_out / 2.0 - node_radius_out
+
+                for j in range(num_outputs_cfg_vis):
+                    network_output_node_id = genome_output_keys[j]
+                    if network_output_node_id in pos: # Ensure the node exists in the network drawing
+                        ax_network_coord = pos[network_output_node_id]
+
+                        # Calculate y-position of the j-th circle in ax_output
+                        y_pos_circle_out = start_y_out - j * (2 * node_radius_out + spacing_between_nodes_out)
+                        # Connect to the left edge (x=0.0) of the ax_output subplot, aligned with the circle's y
+                        ax_output_coord = (0.0, y_pos_circle_out)
+
+                        con = ConnectionPatch(xyA=ax_network_coord, xyB=ax_output_coord,
+                                              coordsA="data", coordsB="data",
+                                              axesA=self.ax_network, axesB=self.ax_output,
+                                              color="gray", linestyle=":", alpha=0.4, linewidth=0.5, zorder=-1)
+                        self.fig.add_artist(con)
+                        self.inter_ax_patches.append(con)
+        
         # 4. Draw output neurons with activation visualization
         # Use current_output_activations which is set based on mock or real mode
         if current_output_activations is None or len(current_output_activations) != self.config.genome_config.num_outputs:
@@ -416,17 +460,38 @@ class NEATVisualization:
         # Use current_prediction which is set based on mock or real mode
         if current_prediction is None:
             current_prediction = "?"
-        self.ax_pred.text(0.5, 0.5, f"Predicted:\n{current_prediction}",
-                         color='white', ha='center', va='center', fontsize=12)
+
+        prediction_color = 'white' # Default
+        if not is_mock and is_correct is not None: # Only apply color logic for non-mock with correctness info
+            prediction_color = 'green' if is_correct else 'red'
+        
+        # Determine prediction text based on user's desired format
+        if not is_mock:
+            # Construct the base prediction text
+            prediction_text = f"Predicted:\n{current_prediction}"
+
+            # Add the actual letter in parentheses if available
+            if actual_letter is not None:
+                 prediction_text += f" ({actual_letter})"
+
+            # The color logic based on is_correct remains the same
+            # prediction_color is set earlier based on is_correct
+
+        else: # Mock data
+            # For mock data, just show the mock prediction
+            prediction_text = f"Predicted:\n{current_prediction}"
+
+        self.ax_pred.text(0.5, 0.5, prediction_text,
+                         color=prediction_color, ha='center', va='center', fontsize=12)
 
         self.canvas.draw()
         plt.pause(0.01)
 
     def _pixmap_to_matrix(self, pixmap, actual_letter):
-        """Convert QPixmap to 6x6 binary matrix"""
+        """Convert QPixmap to 8x6 binary matrix"""
         image = pixmap.toImage()
         matrix = []
-        for y in range(6):
+        for y in range(8):
             row = []
             for x in range(6):
                 pixel = image.pixelColor(x, y)
@@ -435,7 +500,7 @@ class NEATVisualization:
         return np.array(matrix), actual_letter
 
     def generate_letter_pattern(self, letter):
-        """Generate 6x6 pattern from random system font for a given letter"""
+        """Generate 8x6 pattern from random system font for a given letter"""
         from PyQt5.QtGui import QFont, QFontDatabase, QPainter, QPixmap
         from PyQt5.QtCore import Qt
 
@@ -453,9 +518,9 @@ class NEATVisualization:
         painter.drawText(pixmap.rect(), Qt.AlignCenter, letter)
         painter.end()
 
-        # Scale down to 6x6 and convert to matrix
+        # Scale down to 8x6 and convert to matrix
         return self._pixmap_to_matrix(pixmap.scaled(
-            6, 6, Qt.KeepAspectRatio, Qt.SmoothTransformation), letter)
+            6, 8, Qt.KeepAspectRatio, Qt.SmoothTransformation), letter)
 
     def classify_letter(self, genome, letter_pattern):
         """Classify letter using NEAT network based on a given letter_pattern"""
