@@ -147,10 +147,8 @@ class NEATLetterClassifier(QMainWindow):
             [1, 0, 0, 0, 0, 1],
             [1, 1, 1, 1, 1, 1],
             [1, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 1],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0]
-        ]) # 8x6
+            [1, 0, 0, 0, 0, 1]
+        ]) # 6x6
 
         # 2. Mock Network Genome
         # Create a new genome config if not available (should be from self.config)
@@ -158,7 +156,7 @@ class NEATLetterClassifier(QMainWindow):
         mock_genome = self.config.genome_type(0) # Key 0
         mock_genome.configure_new(genome_config)
 
-        # Define nodes: 48 inputs (0-47), 3 hidden (48,49,50), 3 outputs (-1,-2,-3)
+        # Define nodes: 36 inputs (0-35), 3 hidden (36,37,38), 3 outputs (-1,-2,-3)
         # Inputs are implicitly defined by num_inputs in config
         # Hidden nodes
         for i in range(3):
@@ -178,23 +176,23 @@ class NEATLetterClassifier(QMainWindow):
             mock_genome.nodes[node_id].aggregation = 'sum'
         
         # Define connections
-        # Input 0 to Hidden 48
+        # Input 0 to Hidden 36
         cg1 = genome_config.connection_gene_type((0, genome_config.num_inputs + 0))
         cg1.weight = 0.5
         mock_genome.connections[cg1.key] = cg1
-        # Input 10 to Hidden 49
+        # Input 10 to Hidden 37
         cg2 = genome_config.connection_gene_type((10, genome_config.num_inputs + 1))
         cg2.weight = -0.3
         mock_genome.connections[cg2.key] = cg2
-        # Hidden 48 to Output -1
+        # Hidden 36 to Output -1
         cg3 = genome_config.connection_gene_type((genome_config.num_inputs + 0, -1))
         cg3.weight = 0.8
         mock_genome.connections[cg3.key] = cg3
-        # Hidden 49 to Output -2
+        # Hidden 37 to Output -2
         cg4 = genome_config.connection_gene_type((genome_config.num_inputs + 1, -2))
         cg4.weight = 0.2
         mock_genome.connections[cg4.key] = cg4
-         # Hidden 50 to Output -3 (no input to hidden 50, so it's a disconnected part)
+         # Hidden 38 to Output -3 (no input to hidden 38, so it's a disconnected part)
         cg5 = genome_config.connection_gene_type((genome_config.num_inputs + 2, -3))
         cg5.weight = 0.4
         mock_genome.connections[cg5.key] = cg5
@@ -337,21 +335,21 @@ class NEATLetterClassifier(QMainWindow):
 
         # Ensure current_letter_pattern is not None before imshow
         if current_letter_pattern is None:
-             current_letter_pattern = np.zeros((8,6)) # Default to blank if None
+             current_letter_pattern = np.zeros((6,6)) # Default to blank if None
 
-        # 1. Draw raster grid (8x6)
+        # 1. Draw raster grid (6x6)
         self.ax_grid.imshow(current_letter_pattern, cmap='gray', vmin=0, vmax=1)
-        self.ax_grid.set_title('Input Pattern', color='white')
+        self.ax_grid.set_title('Input Pattern (6x6)', color='white')
         
-        # 2. Draw input neurons (48 nodes)
+        # 2. Draw input neurons (36 nodes)
         G_input = nx.DiGraph()
         # Ensure input nodes are added based on the actual config
         num_inputs_cfg = self.config.genome_config.num_inputs
         G_input.add_nodes_from(range(num_inputs_cfg))
         
-        # Calculate positions for input neurons in an 8x6 grid
+        # Calculate positions for input neurons in an 6x6 grid
         input_pos = {}
-        rows, cols = 8, 6
+        rows, cols = 6, 6
         # Adjust spacing and centering for the grid
         x_spacing = 1.0 / (cols - 1) if cols > 1 else 0
         y_spacing = 1.0 / (rows - 1) if rows > 1 else 0
@@ -375,7 +373,7 @@ class NEATLetterClassifier(QMainWindow):
                     input_node_colors.append(color)
                 else:
                     input_node_colors.append('#4e79a7') # Default color if pattern is smaller
-
+        
         nx.draw_networkx_nodes(G_input, input_pos, ax=self.ax_input,
                                  nodelist=list(range(num_inputs_cfg)), # Explicitly pass nodelist
                                  node_color=input_node_colors, node_size=30) # Smaller nodes
@@ -394,7 +392,7 @@ class NEATLetterClassifier(QMainWindow):
             num_inputs = self.config.genome_config.num_inputs
             num_outputs = self.config.genome_config.num_outputs
 
-            # Add 3 hidden nodes (e.g., IDs 48, 49, 50 if num_inputs is 48)
+            # Add 3 hidden nodes (e.g., IDs 36, 37, 38 if num_inputs is 36)
             hidden_node_ids = [num_inputs + i for i in range(3)] 
             for h_id in hidden_node_ids:
                 if h_id not in genome.nodes: # Check if node already exists
@@ -458,7 +456,7 @@ class NEATLetterClassifier(QMainWindow):
             node_spacing = max_spread / float(num_nodes_in_layer) if num_nodes_in_layer > 1 else 0
             # Center the group of nodes around y=0
             return -(current_idx * node_spacing - (num_nodes_in_layer - 1) * node_spacing / 2.0)
-
+        
         all_nodes_for_graph = []
         for i, node_id in enumerate(input_node_ids):
             pos[node_id] = (layer_x_coords['input'], get_y_pos(input_node_ids, i))
@@ -624,7 +622,7 @@ class NEATLetterClassifier(QMainWindow):
             if len(input_data) != self.config.genome_config.num_inputs:
                 # print(f"Warning: Input data size {len(input_data)} does not match num_inputs {self.config.genome_config.num_inputs}")
                 return 0.0 # Cannot evaluate if input size is wrong
-
+            
             output_activations = net.activate(input_data)
             predicted_idx = output_activations.index(max(output_activations))
             predicted_letter = ['A', 'B', 'C'][predicted_idx % 3]
@@ -639,10 +637,10 @@ class NEATLetterClassifier(QMainWindow):
         return random.choice(['A', 'B', 'C'])
         
     def _pixmap_to_matrix(self, pixmap):
-        """Convert QPixmap to 8x6 binary matrix"""
+        """Convert QPixmap to 6x6 binary matrix"""
         image = pixmap.toImage()
         matrix = []
-        for y in range(8):
+        for y in range(6):
             row = []
             for x in range(6):
                 pixel = image.pixelColor(x, y)
@@ -651,7 +649,7 @@ class NEATLetterClassifier(QMainWindow):
         return np.array(matrix), self.current_letter
 
     def generate_letter_pattern(self):
-        """Generate 8x6 pattern from random system font"""
+        """Generate 6x6 pattern from random system font"""
         from PyQt5.QtGui import QFont, QFontDatabase, QPainter, QPixmap
         from PyQt5.QtCore import Qt
         
@@ -669,9 +667,9 @@ class NEATLetterClassifier(QMainWindow):
         painter.drawText(pixmap.rect(), Qt.AlignCenter, self.current_letter)
         painter.end()
         
-        # Scale down to 8x6 and convert to matrix
+        # Scale down to 6x6 and convert to matrix
         return self._pixmap_to_matrix(pixmap.scaled(
-            6, 8, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            6, 6, Qt.KeepAspectRatio, Qt.SmoothTransformation))
     
     def classify_letter(self, genome):
         """Classify letter using NEAT network based on current_letter_pattern"""
@@ -727,4 +725,5 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = NEATLetterClassifier()
     window.show()
-    sys.exit(app.exec_())
+    app.lastWindowClosed.connect(app.quit)
+sys.exit(app.exec_())
