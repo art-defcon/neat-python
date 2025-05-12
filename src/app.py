@@ -16,6 +16,7 @@ class NEATLetterClassifier(QMainWindow):
         super().__init__()
         self.setWindowTitle("NEAT Letter Classifier")
         self.setStyleSheet("background-color: #1e1e1e;")
+        self.resize(1400, self.height()) # Set default width to 1400px
 
         # Configuration (initial values, will be updated by NEATLogic)
         # 'mutation_rate' is removed as it's replaced by specific mutation sliders
@@ -373,23 +374,6 @@ class NEATLetterClassifier(QMainWindow):
         self.total_evals_label.setStyleSheet("color: cyan; font: 10pt 'Consolas';")
         stats_layout.addWidget(self.total_evals_label)
 
-        # Fitness history graph
-        self.fig_fitness, self.ax_fitness = plt.subplots(figsize=(1.5, 1.5))
-        self.line_fitness, = self.ax_fitness.plot([], [], 'g-')
-        self.ax_fitness.set_xlim(0, 100)
-        self.ax_fitness.set_ylim(0, 1)
-        self.ax_fitness.set_title("Fitness History")
-        self.ax_fitness.set_facecolor('#1e1e1e') # Match background
-        self.ax_fitness.tick_params(axis='both', which='both', colors='white') # White ticks
-        self.ax_fitness.xaxis.label.set_color('white') # White labels
-        self.ax_fitness.yaxis.label.set_color('white')
-        self.ax_fitness.title.set_color('white') # White title
-
-
-        canvas = FigureCanvasQTAgg(self.fig_fitness)
-        stats_layout.addWidget(canvas)
-        plt.close(self.fig_fitness) # Close the figure to prevent it from opening in a separate window
-
         self.main_layout.addWidget(stats_widget)
 
     def update_stats_display(self):
@@ -418,20 +402,6 @@ class NEATLetterClassifier(QMainWindow):
 
         total_evals = pop_size * eval_trials if self.neat_logic.generation > 0 else 0 # Only show if evolution has run
         self.total_evals_label.setText(str(total_evals))
-
-        # Update fitness history graph
-        # Access the stored StatisticsReporter
-        stats_reporter = self.neat_logic.stats_reporter
-
-        if stats_reporter and hasattr(stats_reporter, 'num_generations') and hasattr(stats_reporter, 'most_fit_genomes'):
-             generations = range(stats_reporter.num_generations)
-             best_fitness_history = [c.fitness for c in stats_reporter.most_fit_genomes]
-
-             if generations and best_fitness_history:
-                 self.line_fitness.set_data(generations, best_fitness_history)
-                 self.ax_fitness.set_xlim(0, max(100, len(generations))) # Adjust x-limit
-                 self.ax_fitness.set_ylim(0, max(1, max(best_fitness_history) * 1.1)) # Adjust y-limit
-                 self.fig_fitness.canvas.draw()
 
 
     # Removed setup_neat as it's in neat_logic.py

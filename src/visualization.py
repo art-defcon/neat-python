@@ -201,9 +201,13 @@ class NEATVisualization:
         # Style spines for each subplot on redraw as clear() might reset them
         for ax_obj in [self.ax_input, self.ax_network, self.ax_pred]: # Removed ax_output
             for spine in ax_obj.spines.values():
-                spine.set_visible(True)
-                spine.set_edgecolor('gray')
-                spine.set_linewidth(0.5)
+                spine.set_visible(False) # Make spines invisible
+
+        # Set facecolor for ax_input only
+        self.ax_input.set_facecolor('#1e1e1e')
+        # Set facecolor to none for ax_network and ax_pred for transparency
+        self.ax_network.set_facecolor('none')
+        self.ax_pred.set_facecolor('none')
 
         current_letter_pattern = actual_letter_pattern
         current_output_activations = actual_output_activations
@@ -222,9 +226,9 @@ class NEATVisualization:
         num_inputs_cfg = self.config.genome_config.num_inputs
         G_input.add_nodes_from(range(num_inputs_cfg))
 
-        # Calculate positions for input neurons in an 8x6 grid
+        # Calculate positions for input neurons in a 16x16 grid
         input_pos = {}
-        rows, cols = 8, 6 # Updated to 8x6 grid
+        rows, cols = 16, 16 # Updated to 16x16 grid
         # Adjust spacing and centering for the grid
         x_spacing = 1.0 / (cols - 1) if cols > 1 else 0
         y_spacing = 1.0 / (rows - 1) if rows > 1 else 0
