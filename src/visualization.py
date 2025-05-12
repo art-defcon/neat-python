@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.patches import ConnectionPatch
+from collections import deque
 import networkx as nx
 import numpy as np
 import random
@@ -23,6 +24,111 @@ class NEATVisualization:
         self.canvas = None
         self.current_letter = None # This should ideally come from the main app logic
         self.inter_ax_patches = [] # To store ConnectionPatch objects
+
+    def _calculate_node_levels(self, genome, config_input_keys, config_output_keys):
+        """Calculates the 'level' of each node based on its shortest path from an input node."""
+        node_levels = {}
+        all_genome_nodes = set(genome.nodes.keys())
+
+        for node_id in all_genome_nodes:
+            node_levels[node_id] = float('inf')
+
+        input_nodes = sorted([n_id for n_id in all_genome_nodes if n_id in config_input_keys])
+        for node_id in input_nodes:
+            node_levels[node_id] = 0
+
+        # Build adjacency list for BFS (only forward, enabled connections)
+        adj = {node_id: [] for node_id in all_genome_nodes}
+        if genome.connections: # Only build adj list if there are connections
+            for conn_key, conn in genome.connections.items():
+                if getattr(conn, 'enabled', True):
+                    u, v = conn.key
+                    # Ensure nodes in connection are part of the genome's node set
+                    if u in all_genome_nodes and v in all_genome_nodes:
+                        adj[u].append(v)
+        
+        queue = deque()
+        for node_id in input_nodes:
+            queue.append((node_id, 0))
+
+        max_level = 0
+        # BFS to calculate levels
+        visited_during_bfs = set(input_nodes) # Keep track of nodes added to queue to avoid cycles / redundant processing
+
+        while queue:
+            u, level_u = queue.popleft()
+            max_level = max(max_level, level_u)
+
+            # Sort neighbors for deterministic layout, though BFS itself handles shortest path
+            sorted_neighbors = sorted(adj.get(u, []))
+
+            for v in sorted_neighbors:
+                # If we find a path to v, and it's shorter or the first time, update its level
+                if node_levels[v] > level_u + 1: # Check if new path is shorter
+                    node_levels[v] = level_u + 1
+                    if v not in visited_during_bfs:
+                         queue.append((v, level_u + 1))
+                         visited_during_bfs.add(v)
+                elif node_levels[v] == float('inf'): # First time reaching this node
+                    node_levels[v] = level_u + 1
+                    if v not in visited_during_bfs:
+                        queue.append((v, level_u + 1))
+                        visited_during_bfs.add(v)
+
+
+        # Handle unreachable nodes or nodes in a genome with no connections
+        # Output nodes not reached by BFS: place them after the max_level found.
+        # Hidden nodes not reached: place them similarly.
+        
+        # Determine max_level from reachable nodes first
+        current_max_reachable_level = 0
+        has_reachable_nodes = False
+        for node_id in all_genome_nodes:
+            if node_levels[node_id] != float('inf'):
+                current_max_reachable_level = max(current_max_reachable_level, node_levels[node_id])
+                has_reachable_nodes = True
+        
+        if not has_reachable_nodes and not input_nodes: # Completely empty or isolated graph with no inputs
+             max_level = 0 # Default max_level if no nodes were processed (e.g. no inputs)
+        else:
+             max_level = current_max_reachable_level
+
+
+        # Assign levels to unreachable output/hidden nodes
+        # These will be placed one level beyond the max reachable level.
+        output_node_ids = sorted([n_id for n_id in all_genome_nodes if n_id in config_output_keys])
+        hidden_node_ids = sorted([n_id for n_id in all_genome_nodes if n_id not in config_input_keys and n_id not in config_output_keys])
+
+        unreachable_level_offset = 1
+
+        for node_id in output_node_ids:
+            if node_levels[node_id] == float('inf'):
+                # If no connections at all, and no inputs, place outputs at level 1
+                if not genome.connections and not input_nodes:
+                    node_levels[node_id] = 1
+                    max_level = max(max_level, 1)
+                else: # Otherwise, place after all reachable nodes
+                    node_levels[node_id] = max_level + unreachable_level_offset
+                    max_level = max(max_level, node_levels[node_id])
+
+
+        for node_id in hidden_node_ids:
+            if node_levels[node_id] == float('inf'):
+                if not genome.connections and not input_nodes: # Should be rare for hidden nodes
+                    node_levels[node_id] = 1 
+                    max_level = max(max_level, 1)
+                else:
+                    node_levels[node_id] = max_level + unreachable_level_offset # Could be same level as unreachable outputs or further
+                    max_level = max(max_level, node_levels[node_id])
+        
+        # Final fallback for any node still at infinity (should not happen with above logic)
+        for node_id in all_genome_nodes:
+            if node_levels[node_id] == float('inf'):
+                # print(f"[VIS-WARN] Node {node_id} remained at level inf. Defaulting to 0.")
+                node_levels[node_id] = 0 # Default to level 0 as a last resort
+                max_level = max(max_level, 0)
+
+        return node_levels, max_level
 
     def create_visualization(self):
         """Center pane - Network Visualization"""
@@ -343,41 +449,69 @@ class NEATVisualization:
         
         print(f"[VIS] Categorized nodes: Inputs({len(input_node_ids)}): {input_node_ids[:5]}..., Hidden({len(hidden_node_ids)}): {hidden_node_ids[:5]}..., Outputs({len(output_node_ids)}): {output_node_ids}")
 
-        layer_x_coords = {'input': 0, 'hidden': 1.5, 'output': 3.0}
+        # Calculate node levels for layered layout
+        node_levels, max_level = self._calculate_node_levels(genome, config_input_keys, config_output_keys)
+        # print(f"[VIS] Node levels calculated: {node_levels}, Max level: {max_level}")
 
-        def get_y_pos(nodes_in_layer_list, current_idx, total_nodes_in_ref_layer=len(input_node_ids) if input_node_ids else 1):
-            if not nodes_in_layer_list: return 0
-            num_nodes_in_layer = len(nodes_in_layer_list)
-            if num_nodes_in_layer == 0: return 0 # Avoid division by zero
-            # Spread nodes, aiming for a total spread similar to input layer's potential spread
-            # Max spread of 10 units (like input layer if it had 10 items with 1 unit spacing)
-            max_spread = 10.0
-            node_spacing = max_spread / float(num_nodes_in_layer) if num_nodes_in_layer > 1 else 0
-            # Center the group of nodes around y=0
-            return -(current_idx * node_spacing - (num_nodes_in_layer - 1) * node_spacing / 2.0)
+        # Define get_y_pos locally
+        def get_y_pos_local(nodes_in_list, current_idx_in_list):
+            if not nodes_in_list: return 0
+            num_nodes_in_list = len(nodes_in_list)
+            if num_nodes_in_list == 0: return 0
+            max_spread = 10.0  # Max vertical spread for a layer
+            node_spacing_val = max_spread / float(num_nodes_in_list) if num_nodes_in_list > 1 else 0
+            return -(current_idx_in_list * node_spacing_val - (num_nodes_in_list - 1) * node_spacing_val / 2.0)
 
         all_nodes_for_graph = []
-        for i, node_id in enumerate(input_node_ids):
-            pos[node_id] = (layer_x_coords['input'], get_y_pos(input_node_ids, i))
-            all_nodes_for_graph.append(node_id)
-            node_colors_list.append(color_map['input'])
-            node_sizes_list.append(30)
+        pos = {} # Reset pos
+        node_colors_list = [] # Reset
+        node_sizes_list = [] # Reset
 
-        for i, node_id in enumerate(hidden_node_ids):
-            pos[node_id] = (layer_x_coords['hidden'], get_y_pos(hidden_node_ids, i))
-            all_nodes_for_graph.append(node_id)
-            node_colors_list.append(color_map['hidden'])
-            node_sizes_list.append(40 + 20 * abs(genome.nodes[node_id].bias if node_id in genome.nodes and genome.nodes[node_id].bias else 0)) # Check if node exists
+        input_x_coord = 0.0
+        x_increment_per_level = 1.5 # Horizontal spacing between layers
 
-        for i, node_id in enumerate(output_node_ids):
-            pos[node_id] = (layer_x_coords['output'], get_y_pos(output_node_ids, i))
-            all_nodes_for_graph.append(node_id)
-            node_colors_list.append(color_map['output'])
-            node_sizes_list.append(35)
+        nodes_by_level = {}
+        for node_id_val, level_val in node_levels.items():
+            if level_val != float('inf') and node_id_val in current_genome_node_ids:
+                 nodes_by_level.setdefault(level_val, []).append(node_id_val)
+        
+        # print(f"[VIS] Nodes grouped by level: {nodes_by_level}")
 
-        G.add_nodes_from(all_nodes_for_graph)
-        print(f"[VIS] Nodes added to G for ax_network: {len(all_nodes_for_graph)}. First 5: {all_nodes_for_graph[:5]}")
-        print(f"[VIS] Positions calculated (pos dict size {len(pos)}). Sample input pos: {pos.get(input_node_ids[0] if input_node_ids else -1, 'N/A')}, hidden: {pos.get(hidden_node_ids[0] if hidden_node_ids else -1, 'N/A')}, output: {pos.get(output_node_ids[0] if output_node_ids else -1, 'N/A')}")
+
+        for level_idx in sorted(nodes_by_level.keys()): # Iterate through levels in order
+            nodes_in_this_level = sorted(nodes_by_level[level_idx]) # Sort nodes within a level by ID
+            
+            current_x = input_x_coord + level_idx * x_increment_per_level
+            if not nodes_in_this_level: continue # Skip if a level somehow has no nodes (shouldn't happen with setdefault)
+
+            for i, node_id in enumerate(nodes_in_this_level):
+                y_pos_val = get_y_pos_local(nodes_in_this_level, i)
+                pos[node_id] = (current_x, y_pos_val)
+                
+                if node_id not in all_nodes_for_graph: # Ensure node is added only once
+                    all_nodes_for_graph.append(node_id)
+                    # Determine color and size
+                    if node_id in config_input_keys:
+                        node_colors_list.append(color_map['input'])
+                        node_sizes_list.append(30)
+                    elif node_id in config_output_keys:
+                        node_colors_list.append(color_map['output'])
+                        node_sizes_list.append(35)
+                    else:  # Hidden node
+                        bias_val = 0.0
+                        if node_id in genome.nodes and hasattr(genome.nodes[node_id], 'bias'):
+                            bias_val = genome.nodes[node_id].bias if genome.nodes[node_id].bias is not None else 0.0
+                        node_colors_list.append(color_map['hidden'])
+                        node_sizes_list.append(40 + 20 * abs(bias_val))
+        
+        # Ensure all_nodes_for_graph matches node_colors_list and node_sizes_list
+        # This might require rebuilding these lists based on the final all_nodes_for_graph order if nodes were added out of sync.
+        # The current logic appends to all three lists together, so they should be synced.
+
+        G.add_nodes_from(all_nodes_for_graph) # Add all nodes that have positions
+        # print(f"[VIS] Nodes added to G for ax_network: {len(all_nodes_for_graph)}. Sample: {all_nodes_for_graph[:5]}")
+        # print(f"[VIS] Positions calculated (pos dict size {len(pos)}).")
+
 
         # Add connections
         edge_widths = []
