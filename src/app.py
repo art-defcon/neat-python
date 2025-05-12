@@ -78,12 +78,6 @@ class NEATLetterClassifier(QMainWindow):
         self.update_stats_display() # Update stats for the initial state
         # --- End of Initial Network Visualization ---
 
-        # Network visualization setup (This part is now handled by NEATVisualization)
-        # self.fig, self.ax = plt.subplots(figsize=(6, 4))
-        # self.canvas = FigureCanvasQTAgg(self.fig)
-        # self.viz_layout.addWidget(self.canvas)
-        # Removed plt.ion() as it might cause an extra window
-
     def create_controls(self):
         """Left pane - Controls"""
         control_widget = QWidget()
@@ -154,7 +148,7 @@ class NEATLetterClassifier(QMainWindow):
         self.num_hidden_slider, self.num_hidden_value_label = create_slider_with_labels(
             "Number of Hidden Nodes (`num_hidden`):",
             "Initial number of hidden neurons in the network. NEAT can add more during evolution.",
-            0, 10, 1, 0 # Min=0, Max=10, Step=1, Default=0
+            0, 10, 1, 7 # Min=0, Max=10, Step=1, Default=7
         )
         
         # Evaluation Trials per Network
@@ -403,11 +397,6 @@ class NEATLetterClassifier(QMainWindow):
         total_evals = pop_size * eval_trials if self.neat_logic.generation > 0 else 0 # Only show if evolution has run
         self.total_evals_label.setText(str(total_evals))
 
-
-    # Removed setup_neat as it's in neat_logic.py
-
-    # Removed draw_network as it's in visualization.py
-
     def get_current_neat_parameters(self):
         """Reads current NEAT parameters from UI sliders and converts them."""
         params = {
@@ -421,9 +410,6 @@ class NEATLetterClassifier(QMainWindow):
             'node_add_prob': self.node_add_prob_slider.value() / 100.0,
         }
         return params
-
-    # Removed evaluate_genome, generate_letter, _pixmap_to_matrix, generate_letter_pattern, classify_letter, evaluate
-    # as they are in neat_logic.py or visualization.py
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

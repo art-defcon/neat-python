@@ -217,10 +217,7 @@ class NEATVisualization:
         if current_letter_pattern is None:
              current_letter_pattern = np.zeros((16,16)) # Default to blank if None
 
-        # 1. Draw raster grid (16x16) - REMOVED
-        # self.ax_grid.imshow(current_letter_pattern, cmap='gray', vmin=0, vmax=1)
-
-        # 2. Draw input neurons (256 nodes)
+        # 1.  Draw input neurons 
         G_input = nx.DiGraph()
         # Ensure input nodes are added based on the actual config
         num_inputs_cfg = self.config.genome_config.num_inputs

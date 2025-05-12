@@ -50,11 +50,9 @@ The PyQt version offers:
         - "Randomize New Letter" button (for manual stepping when not auto-evolving).
         - "Mock Data" toggle.
     - **Center Pane (Visualization Details)**:
-        1.  **Rasterized Letter Input (Far Left):** Displays the current input pattern as a 16x16 grid.
-        2.  **Input Neuron Layer (To the right of Rasterized Letter):** 256 input nodes.
-        3.  **Network Topology - Hidden Layers & Connections (Center Area):** Dynamic area showing hidden neurons and connections. Connection weights visualized by line thickness/color; neuron activations by color intensity.
-        4.  **Output Neuron Layer (To the right of Network Topology):** 3 nodes for A, B, C classification. Activations visualized.
-        5.  **Live Classification Result (Far Right):** Text display of the predicted letter.
+        1.  **Input Neuron Layer (To the right of Rasterized Letter):** 256 input nodes.
+        2.  **Network Topology - Hidden Layers & Connections (Center Area):** Dynamic area showing hidden neurons and connections. Connection weights visualized by line thickness/color; neuron activations by color intensity.
+        3.  **Live Classification Result (Far Right):** Text display of the predicted letter.
     - **Right Pane (Stats & Info)**:
         - Display of Generation, Best Fitness (individual), Average Population Fitness.
         - Display of "Total Evaluations (Last Gen)".
@@ -70,32 +68,21 @@ The PyQt version offers:
 | Evolution Settings & Ctrl | Network Visualization | Stats & Info|
 |---------------------------|                       |-------------|
 | [GroupBox: Evo Settings]  | +-----------------+   | Generation: |
-|  Population Size: [Sl]    | | Rasterized      |   | Best Fit:   |
+|  Population Size: [Sl]    | | Input Neurons     |   | Best Fit:   |
 |  Fitness Thresh: [Sl]     | | Input (16x16)   |   | Avg Pop Fit:|
 |  Eval Trials: [Sl]        | +--------+--------+   | Tot Evals:  |
 |  Weight Mutate: [Sl]      |          |           |             |
 |  Weight Replace: [Sl]     |          v           | [Graph]     |
 |  Conn Add Prob: [Sl]      | +-----------------+   | Fitness     |
-|  Node Add Prob: [Sl]      | | Input Neurons   |   | History     |
-|  [Instructional Text]     | | (256 Nodes)     |   |             |
+|  Node Add Prob: [Sl]      | | Hidden Layers   |   | History     |
+|  [Instructional Text]     | | (Dynamic Nodes)     |   |             |
 |                           | +--------+--------+   |             |
 | [Button:Start/Stop AutoEV]|          |           |             |
 |---------------------------|          v           |             |
 | [Button:Randomize Letter] | +-----------------+   |             |
-| [Checkbox:Mock Data]      | | Hidden Layers   |   |             |
-|                           | | (Dynamic Nodes) |   |             |
+|                           | | Prediction Text   |   |             |
 |                           | +--------+--------+   |             |
-|                           |          |           |             |
-|                           |          v           |             |
-|                           | +-----------------+   |             |
-|                           | | Output Neurons  |   |             |
-|                           | | (A/B/C - 3 Nodes)|  |             |
-|                           | +--------+--------+   |             |
-|                           |          |           |             |
-|                           |          v           |             |
-|                           | +-----------------+   |             |
-|                           | | Prediction Text |   |             |
-|                           | +-----------------+   |             |
+|                           |                      |             |
 +---------------------------+-----------------------+-------------+
 ```
 
