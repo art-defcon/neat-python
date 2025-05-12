@@ -177,137 +177,7 @@ class NEATVisualization:
 
         self.main_layout.addWidget(self.viz_widget, stretch=1)
 
-    def draw_mock_network_wrapper(self):
-        # This wrapper will call draw_network with mock data
-        # The actual mock data generation will be in _get_mock_visualization_data
-        # and draw_network will be modified to use it.
-        # For now, let's assume draw_network can handle a None or a specific mock genome.
-        # We will create _get_mock_visualization_data and adapt draw_network later.
-        # This method is called when mock_data_enabled is True.
-        mock_data_tuple = self._get_mock_visualization_data()
-        self.draw_network(
-            genome=mock_data_tuple[0],
-            is_mock=True,
-            mock_letter_pattern=mock_data_tuple[1],
-            mock_output_activations=mock_data_tuple[2],
-            mock_prediction=mock_data_tuple[3]
-        )
-
-    def _get_mock_visualization_data(self):
-        """Generates a consistent set of mock data for visualization."""
-        # 1. Mock Rasterized Letter (e.g., an 'A')
-        # Updated to 16x16
-        mock_letter_pattern = np.zeros((16, 16), dtype=int)
-        # Simple 'A' like pattern for 16x16
-        mock_letter_pattern[2:14, 7:9] = 1 # Vertical bar
-        mock_letter_pattern[2, 4:12] = 1   # Top bar
-        mock_letter_pattern[7, 4:12] = 1   # Middle bar
-        mock_letter_pattern[2:8, 4] = 1    # Left leg part 1
-        mock_letter_pattern[2:8, 11] = 1   # Right leg part 1
-
-        # 2. Mock Network Genome
-        # Create a new genome config if not available (should be from self.config)
-        genome_config = self.config.genome_config
-        mock_genome = self.config.genome_type(0) # Key 0
-        mock_genome.configure_new(genome_config)
-
-        # Node IDs from config. `mock_genome.configure_new(genome_config)` already populates
-        # mock_genome.nodes with input and output nodes using neat-python conventions.
-        # Input keys: e.g., [-1, -2, ..., -num_inputs]
-        # Output keys: e.g., [0, 1, ..., num_outputs-1]
-
-        # Add mock hidden nodes. Their IDs start after the highest output node ID.
-        hidden_node_ids_mock = []
-        next_hidden_id = genome_config.num_outputs # Assumes output keys are 0 to num_outputs-1
-        for _ in range(3): # Create 3 mock hidden nodes
-            node_id = next_hidden_id
-            hidden_node_ids_mock.append(node_id)
-            # Add new hidden node gene if it doesn't exist
-            if node_id not in mock_genome.nodes:
-                mock_genome.nodes[node_id] = genome_config.node_gene_type(node_id)
-            # Set attributes for the hidden node
-            mock_genome.nodes[node_id].bias = random.uniform(-0.5, 0.5)
-            mock_genome.nodes[node_id].response = 1.0
-            mock_genome.nodes[node_id].activation = 'tanh'
-            mock_genome.nodes[node_id].aggregation = 'sum'
-            next_hidden_id += 1
-
-        # Ensure output nodes (created by configure_new) have specific mock attributes
-        for node_id in genome_config.output_keys:
-            if node_id in mock_genome.nodes: # Should exist
-                mock_genome.nodes[node_id].bias = 0.0 # Explicitly set for mock
-                mock_genome.nodes[node_id].response = 1.0
-                mock_genome.nodes[node_id].activation = 'tanh'
-                mock_genome.nodes[node_id].aggregation = 'sum'
-
-        # Define connections using neat-python node ID conventions
-        input_keys = list(genome_config.input_keys) # e.g., [-1, -2,...]
-        output_keys = list(genome_config.output_keys) # e.g., [0, 1, 2]
-        # hidden_node_ids_mock was defined in the node creation block above.
-
-        # Clear existing connections for a fresh mock setup
-        mock_genome.connections.clear()
-
-        # Connection 1: First input to first hidden
-        if input_keys and hidden_node_ids_mock:
-            conn_key1 = (input_keys[0], hidden_node_ids_mock[0])
-            cg1 = genome_config.connection_gene_type(conn_key1)
-            cg1.weight = 0.5
-            cg1.enabled = True
-            mock_genome.connections[cg1.key] = cg1
-
-        # Connection 2: An input (e.g., 10th if exists, using index 9) to second hidden
-        if len(input_keys) > 9 and len(hidden_node_ids_mock) > 1: # input_keys[9] is the 10th input
-            conn_key2 = (input_keys[9], hidden_node_ids_mock[1])
-            cg2 = genome_config.connection_gene_type(conn_key2)
-            cg2.weight = -0.3
-            cg2.enabled = True
-            mock_genome.connections[cg2.key] = cg2
-
-        # Connection 3: First hidden to first output
-        if hidden_node_ids_mock and output_keys:
-            conn_key3 = (hidden_node_ids_mock[0], output_keys[0])
-            cg3 = genome_config.connection_gene_type(conn_key3)
-            cg3.weight = 0.8
-            cg3.enabled = True
-            mock_genome.connections[cg3.key] = cg3
-
-        # Connection 4: Second hidden to second output
-        if len(hidden_node_ids_mock) > 1 and len(output_keys) > 1:
-            conn_key4 = (hidden_node_ids_mock[1], output_keys[1])
-            cg4 = genome_config.connection_gene_type(conn_key4)
-            cg4.weight = 0.2
-            cg4.enabled = True
-            mock_genome.connections[cg4.key] = cg4
-        
-        # Connection 5: Third hidden to third output (this hidden node has no direct input from an input node in this mock)
-        if len(hidden_node_ids_mock) > 2 and len(output_keys) > 2:
-            conn_key5 = (hidden_node_ids_mock[2], output_keys[2])
-            cg5 = genome_config.connection_gene_type(conn_key5)
-            cg5.weight = 0.4
-            cg5.enabled = True
-            mock_genome.connections[cg5.key] = cg5
-
-        # Connection 6: Example of a disabled connection (e.g., 5th input to first output)
-        if len(input_keys) > 4 and output_keys: # input_keys[4] is the 5th input
-            conn_key_disabled = (input_keys[4], output_keys[0])
-            if conn_key_disabled not in mock_genome.connections: # Avoid overwriting for this example
-                cg_disabled = genome_config.connection_gene_type(conn_key_disabled)
-                cg_disabled.weight = -0.7
-                cg_disabled.enabled = False # This connection is disabled
-                mock_genome.connections[cg_disabled.key] = cg_disabled
-
-
-        # 3. Mock Output Activations
-        mock_output_activations = [0.75, 0.20, 0.05]
-
-        # 4. Mock Predicted Letter
-        mock_prediction = "A"
-
-        return mock_genome, mock_letter_pattern, mock_output_activations, mock_prediction
-
-    def draw_network(self, genome, is_mock=False,
-                       mock_letter_pattern=None, mock_output_activations=None, mock_prediction=None,
+    def draw_network(self, genome,
                        actual_letter_pattern=None, actual_output_activations=None, actual_prediction=None,
                        actual_letter=None, # Added actual_letter parameter
                        is_correct=None):
@@ -335,22 +205,9 @@ class NEATVisualization:
                 spine.set_edgecolor('gray')
                 spine.set_linewidth(0.5)
 
-        current_letter_pattern = None
-        current_output_activations = None
-        current_prediction = None
-
-        if is_mock:
-            current_letter_pattern = mock_letter_pattern
-            current_output_activations = mock_output_activations
-            current_prediction = mock_prediction
-            # genome is already the mock_genome passed in
-        else:
-            # This is for the real NEAT data path
-            # Use the directly passed actual_... parameters
-            current_letter_pattern = actual_letter_pattern
-            current_output_activations = actual_output_activations
-            current_prediction = actual_prediction
-            # is_correct is passed directly and will be used for coloring the prediction text
+        current_letter_pattern = actual_letter_pattern
+        current_output_activations = actual_output_activations
+        current_prediction = actual_prediction
 
         # Ensure current_letter_pattern is not None before imshow
         if current_letter_pattern is None:
@@ -479,7 +336,7 @@ class NEATVisualization:
             nodes_in_this_level = sorted(nodes_by_level[level_idx]) # Sort nodes within a level by ID
             
             current_x = input_x_coord + level_idx * x_increment_per_level
-            if not nodes_in_this_level: continue # Skip if a level somehow has no nodes (shouldn't happen with setdefault)
+            if not nodes_in_this_level: continue # Skip if a level somehow has no nodes (should't happen with setdefault)
 
             for i, node_id in enumerate(nodes_in_this_level):
                 y_pos_val = get_y_pos_local(nodes_in_this_level, i)
@@ -561,35 +418,20 @@ class NEATVisualization:
                     self.inter_ax_patches.append(con)
 
         # 4. Draw prediction text
-        # Use current_prediction which is set based on mock or real mode
         if current_prediction is None:
             current_prediction = "?"
 
         prediction_color = 'white' # Default
-        if not is_mock and is_correct is not None: # Only apply color logic for non-mock with correctness info
+        if is_correct is not None: # Apply color logic based on correctness info
             prediction_color = 'green' if is_correct else 'red'
         
-        # Determine prediction text based on user's desired format
-        if not is_mock:
-            # Construct the base prediction text
-            prediction_text = f"Predicted:\n{current_prediction}"
+        # Construct the base prediction text
+        prediction_text = f"Predicted:\n{current_prediction}"
 
-            # Add the actual letter in parentheses if available
-            if actual_letter is not None:
-                 prediction_text += f" ({actual_letter})"
+        # Add the actual letter in parentheses if available
+        if actual_letter is not None:
+             prediction_text += f" ({actual_letter})"
 
-            # The color logic based on is_correct remains the same
-            # prediction_color is set earlier based on is_correct
-
-        else: # Mock data
-            # For mock data, just show the mock prediction
-            prediction_text = f"Predicted:\n{current_prediction}"
-
-        # For ax_pred, the title is effectively the text itself. We can draw a box around the text area.
-        # However, set_title is not typically used for the main content of ax_pred.
-        # The text is drawn directly. To put a box around this text, we'd need to draw a patch.
-        # For now, let's skip boxing the prediction text itself, as it's not a "title".
-        # If a box is needed around the ax_pred subplot, the spine styling handles that.
         self.ax_pred.set_title('Prediction', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
 
 

@@ -32,7 +32,6 @@ class NEATLetterClassifier(QMainWindow):
         self.setCentralWidget(self.main_widget)
         self.main_layout = QHBoxLayout(self.main_widget)
 
-        self.mock_data_enabled = False # Initialize state variable - Changed to False
         # Instantiate refactored components
         self.neat_logic = NEATLogic(os.path.join(os.path.dirname(__file__), 'neat_config'))
         # NEAT setup
@@ -47,14 +46,42 @@ class NEATLetterClassifier(QMainWindow):
         self.visualization.create_visualization() # Use visualization component
         self.create_stats_panel()
 
+        # --- Initial Network Visualization ---
+        # Generate a random letter and classify it with the initial genome
+        initial_letter = self.neat_logic.generate_letter()
+        initial_letter_pattern, _ = self.neat_logic.generate_letter_pattern(initial_letter)
+
+        initial_genome = None
+        if self.neat_logic.p and self.neat_logic.p.population:
+            initial_genome = next(iter(self.neat_logic.p.population.values()), None)
+
+        if initial_genome and initial_letter_pattern is not None:
+            predicted_letter, output_activations = self.neat_logic.classify_letter(initial_genome, initial_letter_pattern)
+            is_correct = (predicted_letter == initial_letter)
+
+            self.visualization.draw_network(
+                genome=initial_genome,
+                actual_letter_pattern=initial_letter_pattern,
+                actual_output_activations=output_activations,
+                actual_prediction=predicted_letter,
+                actual_letter=initial_letter,
+                is_correct=is_correct
+            )
+        elif initial_genome:
+             # Handle case where letter_pattern could not be generated
+             self.visualization.draw_network(genome=initial_genome, actual_prediction="Error: No Pattern", actual_letter=None)
+        else:
+             # Handle case: No initial genome found
+             self.visualization.draw_network(genome=None, actual_prediction="Error: No Genome", actual_letter=None)
+
+        self.update_stats_display() # Update stats for the initial state
+        # --- End of Initial Network Visualization ---
+
         # Network visualization setup (This part is now handled by NEATVisualization)
         # self.fig, self.ax = plt.subplots(figsize=(6, 4))
         # self.canvas = FigureCanvasQTAgg(self.fig)
         # self.viz_layout.addWidget(self.canvas)
         # Removed plt.ion() as it might cause an extra window
-
-        # Initial draw based on mock data state
-        self.on_mock_data_toggled(Qt.Checked if self.mock_data_enabled else Qt.Unchecked)
 
     def create_controls(self):
         """Left pane - Controls"""
@@ -175,13 +202,6 @@ class NEATLetterClassifier(QMainWindow):
         top_control_layout.addWidget(evolution_settings_group)
         # --- End of Evolution Settings Group ---
 
-        # Mock Data toggle (remains outside the group)
-        self.mock_data_checkbox = QCheckBox("Mock Data")
-        self.mock_data_checkbox.setStyleSheet("color: white;")
-        self.mock_data_checkbox.setChecked(False) # Default to False
-        self.mock_data_checkbox.stateChanged.connect(self.on_mock_data_toggled)
-        top_control_layout.addWidget(self.mock_data_checkbox)
-
         # Randomize Letter Button (remains outside the group)
         self.randomize_button = QPushButton("Randomize New Letter")
         self.randomize_button.setStyleSheet("color: white; background-color: #555; padding: 5px;")
@@ -206,19 +226,13 @@ class NEATLetterClassifier(QMainWindow):
             # Disable sliders
             for slider in self.evolution_sliders:
                 slider.setEnabled(False)
-            self.mock_data_checkbox.setEnabled(False)  # Disable mock data during evolution
 
             current_params = self.get_current_neat_parameters()
             self.neat_logic.reconfigure_neat(current_params)  # Pass params to NEATLogic
 
             # Evolution loop
-            while self.auto_evolve_button.isChecked() and not self.mock_data_enabled:
+            while self.auto_evolve_button.isChecked():
                 # This is the core logic previously in run_evolution(), minus timer parts
-                if self.mock_data_enabled: # Should be caught by loop condition or on_mock_data_toggled
-                    if self.auto_evolve_button.isChecked():
-                         self.auto_evolve_button.setChecked(False)
-                    break # Exit loop
-
                 evolution_finished = self.neat_logic.run_evolution_step()
                 self.update_stats_display()
 
@@ -232,7 +246,6 @@ class NEATLetterClassifier(QMainWindow):
                         is_correct = (predicted_letter == current_eval_letter)
                         self.visualization.draw_network(
                             genome=self.neat_logic.p.best_genome,
-                            is_mock=False,
                             actual_letter_pattern=letter_pattern,
                             actual_output_activations=output_activations,
                             actual_prediction=predicted_letter,
@@ -242,7 +255,6 @@ class NEATLetterClassifier(QMainWindow):
                     else:
                          self.visualization.draw_network(
                             genome=self.neat_logic.p.best_genome,
-                            is_mock=False,
                             actual_prediction="Error: No Pattern",
                             actual_letter=None
                         )
@@ -262,15 +274,10 @@ class NEATLetterClassifier(QMainWindow):
             # Enable sliders
             for slider in self.evolution_sliders:
                 slider.setEnabled(True)
-            self.mock_data_checkbox.setEnabled(True)  # Re-enable mock data
             # No timer to stop, the loop condition handles termination.
 
     def on_randomize_letter_clicked(self):
         """Randomize a new letter and redraw the network visualization."""
-        # Ensure we are not in mock data mode
-        if self.mock_data_enabled:
-            return
-
         # 1. Randomize a letter
         random_actual_letter = self.neat_logic.generate_letter()
 
@@ -296,7 +303,6 @@ class NEATLetterClassifier(QMainWindow):
             # 5. Update visualization
             self.visualization.draw_network(
                 genome=current_genome,
-                is_mock=False,
                 actual_letter_pattern=letter_pattern,
                 actual_output_activations=output_activations,
                 actual_prediction=predicted_letter,
@@ -308,81 +314,13 @@ class NEATLetterClassifier(QMainWindow):
             self.update_stats_display()
         elif current_genome:
              # Handle case where letter_pattern could not be generated
-             self.visualization.draw_network(genome=current_genome, is_mock=False, actual_prediction="Error: No Pattern", actual_letter=None)
+             self.visualization.draw_network(genome=current_genome, actual_prediction="Error: No Pattern", actual_letter=None)
              self.update_stats_display()
         else:
              # Handle case: No genome found
-             self.visualization.draw_network(genome=None, is_mock=False, actual_prediction="Error: No Genome", actual_letter=None)
-             self.update_stats_display(is_mock=True)
+             self.visualization.draw_network(genome=None, actual_prediction="Error: No Genome", actual_letter=None)
+             self.update_stats_display()
 
-
-    def on_mock_data_toggled(self, state):
-        self.mock_data_enabled = (state == Qt.Checked)
-        if self.mock_data_enabled:
-            # When mock data is enabled, stop auto-evolution if it's running
-            if self.auto_evolve_button.isChecked():
-                self.auto_evolve_button.setChecked(False) # This will trigger on_auto_evolve_toggled(False)
-            
-            self.auto_evolve_button.setEnabled(False) # Disable auto-evolve button
-            # Disable evolution sliders when mock data is on
-            if hasattr(self, 'evolution_sliders'):
-                for slider in self.evolution_sliders:
-                    slider.setEnabled(False)
-            self.visualization.draw_mock_network_wrapper()
-            self.update_stats_display(is_mock=True)
-        else:
-            self.auto_evolve_button.setEnabled(True) # Enable auto-evolve button
-            # Enable evolution sliders when mock data is off (if not auto-evolving)
-            if hasattr(self, 'evolution_sliders') and not self.auto_evolve_button.isChecked():
-                for slider in self.evolution_sliders:
-                    slider.setEnabled(True)
-            
-            # --- New Startup Sequence Logic (when mock data is turned off) ---
-            initial_genome = None
-            if self.neat_logic.p and self.neat_logic.p.population:
-                # Get the first genome from the initialized population as the "starter network"
-                initial_genome = next(iter(self.neat_logic.p.population.values()), None)
-
-            if initial_genome:
-                # 1. Randomize a letter
-                random_actual_letter = self.neat_logic.generate_letter()
-
-                # 2. Rasterize it
-                letter_pattern, _ = self.neat_logic.generate_letter_pattern(random_actual_letter)
-
-                if letter_pattern is not None:
-                    # 3. Get network output and classification (using modified neat_logic.classify_letter)
-                    # classify_letter now returns (predicted_char, activations_list)
-                    predicted_letter, output_activations = self.neat_logic.classify_letter(initial_genome, letter_pattern)
-                    
-                    # 4. Determine correctness
-                    is_correct = (predicted_letter == random_actual_letter)
-
-                    # 5. Update visualization (using modified draw_network)
-                    self.visualization.draw_network(
-                        genome=initial_genome,
-                        is_mock=False,
-                        actual_letter_pattern=letter_pattern,
-                        actual_output_activations=output_activations,
-                        actual_prediction=predicted_letter,
-                        actual_letter=random_actual_letter, # Pass the actual letter
-                        is_correct=is_correct
-                    )
-                else:
-                    # Handle case where letter_pattern could not be generated
-                    self.visualization.draw_network(genome=initial_genome, is_mock=False, actual_prediction="Error: No Pattern", actual_letter=None) # Pass None for actual letter
-
-                self.update_stats_display() # Update stats for real data
-            else:
-                # Handle case: No initial genome found
-                self.visualization.draw_network(genome=None, is_mock=False, actual_prediction="Error: No Genome", actual_letter=None) # Pass None for actual letter
-                self.update_stats_display(is_mock=True) # Show mock stats if no network
-
-        # Potentially restart evolution if auto_evolve_button was checked (existing logic)
-        # This is now handled by on_auto_evolve_toggled
-        # if self.auto_evolve_button.isChecked():
-        #     self.run_evolution() 
-        # --- End of New Startup Sequence Logic ---
 
     def create_stats_panel(self):
         """Right pane - Stats & Info"""
@@ -454,57 +392,46 @@ class NEATLetterClassifier(QMainWindow):
 
         self.main_layout.addWidget(stats_widget)
 
-    def update_stats_display(self, is_mock=False):
-        """Update the stats labels based on NEAT logic or mock data"""
-        if is_mock:
-            self.gen_label.setText("Mock")
-            self.fitness_label.setText("N/A")
-            self.avg_fitness_label.setText("N/A")
-            self.total_evals_label.setText("N/A")
-            # Clear fitness history graph for mock data
-            self.line_fitness.set_data([], [])
-            self.ax_fitness.set_xlim(0, 100)
-            self.ax_fitness.set_ylim(0, 1)
-            self.fig_fitness.canvas.draw()
-        else:
-            self.gen_label.setText(str(self.neat_logic.generation))
-            self.fitness_label.setText(f"{self.neat_logic.best_fitness:.2f}")
-            
-            # Update average population fitness
-            avg_fitness = 0.0
-            if self.neat_logic.stats_reporter:
-                fitness_means = self.neat_logic.stats_reporter.get_fitness_mean()
-                if fitness_means:
-                    avg_fitness = fitness_means[-1] # Get the last one
-            self.avg_fitness_label.setText(f"{avg_fitness:.2f}")
+    def update_stats_display(self):
+        """Update the stats labels based on NEAT logic"""
+        self.gen_label.setText(str(self.neat_logic.generation))
+        self.fitness_label.setText(f"{self.neat_logic.best_fitness:.2f}")
+        
+        # Update average population fitness
+        avg_fitness = 0.0
+        if self.neat_logic.stats_reporter:
+            fitness_means = self.neat_logic.stats_reporter.get_fitness_mean()
+            if fitness_means:
+                avg_fitness = fitness_means[-1] # Get the last one
+        self.avg_fitness_label.setText(f"{avg_fitness:.2f}")
 
-            # Update Total Evaluations (Last Gen)
-            # This requires knowing pop_size and eval_trials used for the *last completed* generation
-            # For now, let's use the current slider values if available, or defaults from neat_logic
-            pop_size = self.pop_slider.value()
-            eval_trials = self.eval_trials_slider.value()
-            if self.neat_logic.p and self.neat_logic.p.config: # If evolution has run, use actual config
-                pop_size = self.neat_logic.p.config.pop_size
-            # eval_trials is stored in neat_logic.num_evaluation_trials after reconfigure
-            if hasattr(self.neat_logic, 'num_evaluation_trials') and self.neat_logic.num_evaluation_trials is not None:
-                 eval_trials = self.neat_logic.num_evaluation_trials
+        # Update Total Evaluations (Last Gen)
+        # This requires knowing pop_size and eval_trials used for the *last completed* generation
+        # For now, let's use the current slider values if available, or defaults from neat_logic
+        pop_size = self.pop_slider.value()
+        eval_trials = self.eval_trials_slider.value()
+        if self.neat_logic.p and self.neat_logic.p.config: # If evolution has run, use actual config
+            pop_size = self.neat_logic.p.config.pop_size
+        # eval_trials is stored in neat_logic.num_evaluation_trials after reconfigure
+        if hasattr(self.neat_logic, 'num_evaluation_trials') and self.neat_logic.num_evaluation_trials is not None:
+             eval_trials = self.neat_logic.num_evaluation_trials
 
-            total_evals = pop_size * eval_trials if self.neat_logic.generation > 0 else 0 # Only show if evolution has run
-            self.total_evals_label.setText(str(total_evals))
+        total_evals = pop_size * eval_trials if self.neat_logic.generation > 0 else 0 # Only show if evolution has run
+        self.total_evals_label.setText(str(total_evals))
 
-            # Update fitness history graph
-            # Access the stored StatisticsReporter
-            stats_reporter = self.neat_logic.stats_reporter
+        # Update fitness history graph
+        # Access the stored StatisticsReporter
+        stats_reporter = self.neat_logic.stats_reporter
 
-            if stats_reporter and hasattr(stats_reporter, 'num_generations') and hasattr(stats_reporter, 'most_fit_genomes'):
-                 generations = range(stats_reporter.num_generations)
-                 best_fitness_history = [c.fitness for c in stats_reporter.most_fit_genomes]
+        if stats_reporter and hasattr(stats_reporter, 'num_generations') and hasattr(stats_reporter, 'most_fit_genomes'):
+             generations = range(stats_reporter.num_generations)
+             best_fitness_history = [c.fitness for c in stats_reporter.most_fit_genomes]
 
-                 if generations and best_fitness_history:
-                     self.line_fitness.set_data(generations, best_fitness_history)
-                     self.ax_fitness.set_xlim(0, max(100, len(generations))) # Adjust x-limit
-                     self.ax_fitness.set_ylim(0, max(1, max(best_fitness_history) * 1.1)) # Adjust y-limit
-                     self.fig_fitness.canvas.draw()
+             if generations and best_fitness_history:
+                 self.line_fitness.set_data(generations, best_fitness_history)
+                 self.ax_fitness.set_xlim(0, max(100, len(generations))) # Adjust x-limit
+                 self.ax_fitness.set_ylim(0, max(1, max(best_fitness_history) * 1.1)) # Adjust y-limit
+                 self.fig_fitness.canvas.draw()
 
 
     # Removed setup_neat as it's in neat_logic.py
