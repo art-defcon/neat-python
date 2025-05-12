@@ -56,6 +56,7 @@ class NEATLogic:
         # Override parameters from the params dictionary
         new_config.pop_size = params.get('population_size', new_config.pop_size)
         new_config.fitness_threshold = params.get('fitness_threshold', new_config.fitness_threshold)
+        new_config.genome_config.num_hidden = params.get('num_hidden', new_config.genome_config.num_hidden)
         
         # Genome specific configurations
         new_config.genome_config.weight_mutate_rate = params.get('weight_mutate_rate', new_config.genome_config.weight_mutate_rate)
@@ -175,7 +176,14 @@ class NEATLogic:
 
             # Convert image to numpy array (normalize to 0-1)
             pattern = np.array(img).astype(float) / 255.0
-            return pattern, letter # Return pattern and the actual letter
+
+            # Crop the pattern: remove first 4 rows, last 4 rows, first 5 columns, last 5 columns
+            # Original size: 16x16
+            # Rows to keep: 4 to 11 (inclusive)
+            # Columns to keep: 5 to 10 (inclusive)
+            cropped_pattern = pattern[4:12, 5:11]
+
+            return cropped_pattern, letter # Return the cropped pattern and the actual letter
         except Exception as e:
             print(f"Error generating letter pattern for '{letter}': {e}")
             return None, letter # Return None pattern on error

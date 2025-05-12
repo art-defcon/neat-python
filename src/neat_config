@@ -6,11 +6,11 @@ fitness_threshold = 1.0
 
 [DefaultGenome]
 # node parameters
-num_inputs = 256
+num_inputs = 48
 num_outputs = 26
 num_hidden = 0
 feed_forward = True
-initial_connection = partial_nodirect 0.5
+initial_connection = full_nodirect
 
 # node enable/disable parameters
 enabled_default = True

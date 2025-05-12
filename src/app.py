@@ -121,6 +121,13 @@ class NEATLetterClassifier(QMainWindow):
             "Target fitness score; evolution stops if a genome reaches this.",
             80, 100, 1, int(self.config_values['fitness_threshold'] * 100), is_percentage=True
         )
+
+        # Number of Hidden Nodes
+        self.num_hidden_slider, self.num_hidden_value_label = create_slider_with_labels(
+            "Number of Hidden Nodes (`num_hidden`):",
+            "Initial number of hidden neurons in the network. NEAT can add more during evolution.",
+            0, 10, 1, 0 # Min=0, Max=10, Step=1, Default=0
+        )
         
         # Evaluation Trials per Network
         self.eval_trials_slider, self.eval_trials_value_label = create_slider_with_labels(
@@ -188,7 +195,7 @@ class NEATLetterClassifier(QMainWindow):
     def on_auto_evolve_toggled(self, checked):
         """Handles Start/Stop Auto-Evolve button clicks and parameter locking."""
         self.evolution_sliders = [
-            self.pop_slider, self.fitness_slider, self.eval_trials_slider,
+            self.pop_slider, self.fitness_slider, self.num_hidden_slider, self.eval_trials_slider,
             self.weight_mutate_rate_slider, self.weight_replace_rate_slider,
             self.conn_add_prob_slider, self.node_add_prob_slider
         ]
@@ -509,6 +516,7 @@ class NEATLetterClassifier(QMainWindow):
         params = {
             'population_size': self.pop_slider.value(),
             'fitness_threshold': self.fitness_slider.value() / 100.0,
+            'num_hidden': self.num_hidden_slider.value(),
             'num_evaluation_trials': self.eval_trials_slider.value(),
             'weight_mutate_rate': self.weight_mutate_rate_slider.value() / 100.0,
             'weight_replace_rate': self.weight_replace_rate_slider.value() / 100.0,
