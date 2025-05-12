@@ -411,10 +411,13 @@ class NEATVisualization:
                 if network_input_node_id in pos: # Ensure the node exists in the network drawing
                     ax_network_coord = pos[network_input_node_id]
 
+                   
+                    # Determine color based on activation
+                    activation_color = "blue" if flattened_pattern[i] == 1 else "gray"
                     con = ConnectionPatch(xyA=ax_input_coord, xyB=ax_network_coord,
                                           coordsA="data", coordsB="data",
                                           axesA=self.ax_input, axesB=self.ax_network,
-                                          color="gray", linestyle=":", alpha=0.4, linewidth=0.5, zorder=-1)
+                                          color=activation_color, linestyle=":", alpha=0.4 if flattened_pattern[i] == 1 else 0.2, linewidth=0.5, zorder=-1)
                     self.fig.add_artist(con)
                     self.inter_ax_patches.append(con)
 

@@ -113,8 +113,12 @@ class NEATLogic:
         
         # Run NEAT's evolution for one generation.
         # The `self.evaluate` function will be called by `p.run` for all genomes.
-        winner = self.p.run(self.evaluate, 1) # Run for 1 generation
-
+        try:
+            winner = self.p.run(self.evaluate, 1) # Run for 1 generation
+        except neat.CompleteExtinctionException:
+            print("Complete extinction exception encountered. Stopping auto-evolve.")
+            return False # Indicate stopping evolution
+            
         self.generation = self.p.generation
         if self.p.best_genome:
             self.best_fitness = self.p.best_genome.fitness

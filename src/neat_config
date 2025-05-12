@@ -1,75 +1,132 @@
 [NEAT]
+# Whether to reset the population if all species go extinct
 reset_on_extinction = False
+# Number of genomes in the population
 pop_size = 150
-fitness_criterion = max
+# Criterion to determine the best genome (max, min, or mean fitness)
+# Options:
+#   max: Selects the genome with the maximum fitness as the best genome.
+#   min: Selects the genome with the minimum fitness as the best genome.
+#   mean: Uses the mean fitness of the population to evaluate progress.
+fitness_criterion = mean
+# Fitness value at which evolution stops
 fitness_threshold = 1.0
 
 [DefaultGenome]
-# node parameters
+# Number of input neurons
 num_inputs = 80
+# Number of output neurons
 num_outputs = 26
-num_hidden = 7
+# Number of hidden neurons (initially)
+num_hidden = 1
+# Whether the network is feed-forward (no cycles)
+# Options:
+#   True: The network is feed-forward, meaning no cycles are allowed.
+#   False: The network can have cycles.
 feed_forward = True
-initial_connection = full_nodirect
+# Initial connection type: full_nodirect means fully connected without direct input-output connections
+# Options:
+#   unconnected: No initial connections between neurons.
+#   sparse: Randomly connects a small number of neurons, resulting in a sparse network.
+#   full: Fully connects all input neurons to all output neurons (and hidden neurons, if any).
+#   full_nodirect: Fully connects input neurons to hidden neurons and hidden neurons to output neurons, but no direct input-output connections.
+initial_connection = unconnected
 
-# node enable/disable parameters
+# Default state of connections (enabled or disabled)
+# Options:
+#   True: Connections are enabled by default.
+#   False: Connections are disabled by default.
 enabled_default = True
+# Probability of mutating the enabled/disabled state of a connection
 enabled_mutate_rate = 0.1
 
-# network parameters
+# Default activation function for neurons
+# Options:
+#   relu: Rectified Linear Unit activation function.
+#   sigmoid: Sigmoid activation function.
+#   tanh: Hyperbolic tangent activation function.
 activation_default = tanh
+# Probability of mutating the activation function
 activation_mutate_rate = 0.1
+# List of possible activation functions
 activation_options = tanh
 
-# aggregation parameters
+# Default aggregation function for neurons
+# Options:
+#   sum: Aggregates inputs by summing them.
+#   product: Aggregates inputs by multiplying them.
+#   max: Aggregates inputs by taking the maximum value.
 aggregation_default = sum
-aggregation_mutate_rate = 0.1
+# Probability of mutating the aggregation function
+aggregation_mutate_rate = 0.3
+# List of possible aggregation functions
 aggregation_options = sum
 
-# response parameters
+# Initial mean and standard deviation for neuron response values
 response_init_mean = 1.0
 response_init_stdev = 0.0
+# Maximum and minimum allowed response values
 response_max_value = 30.0
 response_min_value = -30.0
+# Probability of mutating the response value
 response_mutate_rate = 0.7
+# Probability of replacing the response value with a new random value
 response_replace_rate = 0.1
+# Magnitude of mutation for response values
 response_mutate_power = 0.5
 
-# bias parameters
+# Initial mean and standard deviation for neuron bias values
 bias_init_mean = 0.0
 bias_init_stdev = 1.0
+# Maximum and minimum allowed bias values
 bias_max_value = 30.0
 bias_min_value = -30.0
+# Probability of mutating the bias value
 bias_mutate_rate = 0.7
+# Probability of replacing the bias value with a new random value
 bias_replace_rate = 0.1
+# Magnitude of mutation for bias values
 bias_mutate_power = 0.5
 
-# weight parameters
+# Initial mean and standard deviation for connection weights
 weight_init_mean = 0.0
 weight_init_stdev = 1.0
+# Maximum and minimum allowed weight values
 weight_max_value = 30
 weight_min_value = -30
+# Probability of mutating the weight value
 weight_mutate_rate = 0.8
+# Probability of replacing the weight value with a new random value
 weight_replace_rate = 0.1
+# Magnitude of mutation for weight values
 weight_mutate_power = 0.5
 
-# structural mutation parameters
+# Probability of adding a new connection during mutation
 conn_add_prob = 0.5
+# Probability of deleting an existing connection during mutation
 conn_delete_prob = 0.5
-node_add_prob = 0.2
-node_delete_prob = 0.2
+# Probability of adding a new node during mutation
+node_add_prob = 0.3
+# Probability of deleting an existing node during mutation
+node_delete_prob = 0.1
 
-# compatibility parameters
-compatibility_disjoint_coefficient = 1.0
+# Coefficient for disjoint genes in compatibility calculation
+compatibility_disjoint_coefficient = 1.5
+# Coefficient for weight differences in compatibility calculation
 compatibility_weight_coefficient = 0.5
 
 [DefaultSpeciesSet]
-compatibility_threshold = 3.0
+# Threshold for compatibility distance to group genomes into the same species
+compatibility_threshold = 2.5
 
 [DefaultReproduction]
+# Number of top genomes to preserve unaltered in each generation
 elitism = 2
+# Fraction of genomes in each species allowed to reproduce
 survival_threshold = 0.2
 
 [DefaultStagnation]
+# Fitness function to determine species fitness (max, min, or mean)
 species_fitness_func = mean
+# Maximum number of generations a species can stagnate before being removed
 max_stagnation = 20
