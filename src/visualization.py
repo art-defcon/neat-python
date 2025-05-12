@@ -140,21 +140,19 @@ class NEATVisualization:
 
         # Create matplotlib figure with multiple subplots
         self.fig = Figure(figsize=(10, 6), facecolor='#1e1e1e') # Adjusted figsize
-        gs = self.fig.add_gridspec(1, 4, width_ratios=[1, 3, 1, 1]) # Adjusted grid_spec
+        # Adjusted grid_spec to remove ax_output and expand ax_network
+        gs = self.fig.add_gridspec(1, 3, width_ratios=[1, 4, 1])
 
         # Create axes
-        # self.ax_grid = self.fig.add_subplot(gs[0])    # Raster grid - REMOVED
         self.ax_input = self.fig.add_subplot(gs[0])   # Input neurons
         self.ax_network = self.fig.add_subplot(gs[1]) # Network topology
-        self.ax_output = self.fig.add_subplot(gs[2])  # Output neurons
-        self.ax_pred = self.fig.add_subplot(gs[3])    # Prediction text
+        self.ax_pred = self.fig.add_subplot(gs[2])    # Prediction text
 
         # Set aspect for square plots
-        # self.ax_grid.set_aspect('equal', adjustable='box') # REMOVED
         self.ax_input.set_aspect('equal', adjustable='box')
 
         # Configure axes
-        for ax_obj in [self.ax_input, self.ax_network, self.ax_output, self.ax_pred]: # Renamed ax to ax_obj to avoid conflict, removed ax_grid
+        for ax_obj in [self.ax_input, self.ax_network, self.ax_pred]: # Removed ax_output
             ax_obj.set_facecolor('#1e1e1e')
             ax_obj.tick_params(axis='both', which='both', length=0)
             ax_obj.set_xticks([])
@@ -322,17 +320,16 @@ class NEATVisualization:
         self.inter_ax_patches = []
 
         # Clear all axes
-        for ax in [self.ax_input, self.ax_network, self.ax_output, self.ax_pred]: # Removed ax_grid
+        for ax in [self.ax_input, self.ax_network, self.ax_pred]: # Removed ax_output
             ax.clear()
             ax.set_xticks([])
             ax.set_yticks([])
 
         # Ensure square aspect ratio after clearing
-        # self.ax_grid.set_aspect('equal', adjustable='box') # REMOVED
         self.ax_input.set_aspect('equal', adjustable='box')
 
         # Style spines for each subplot on redraw as clear() might reset them
-        for ax_obj in [self.ax_input, self.ax_network, self.ax_output, self.ax_pred]: # Removed ax_grid
+        for ax_obj in [self.ax_input, self.ax_network, self.ax_pred]: # Removed ax_output
             for spine in ax_obj.spines.values():
                 spine.set_visible(True)
                 spine.set_edgecolor('gray')
@@ -563,70 +560,7 @@ class NEATVisualization:
                     self.fig.add_artist(con)
                     self.inter_ax_patches.append(con)
 
-        # 2. Connect each genome output node in ax_network to its corresponding visual circle in ax_output
-        genome_output_keys = sorted(list(self.config.genome_config.output_keys)) # Ensure sorted, e.g. [0, 1, 2]
-        if output_node_ids and current_output_activations is not None and len(genome_output_keys) == len(current_output_activations):
-            num_outputs_cfg_vis = len(current_output_activations)
-            if num_outputs_cfg_vis > 0:
-                node_radius_out = 0.10
-                spacing_between_nodes_out = node_radius_out * 0.5
-                total_height_nodes_out = num_outputs_cfg_vis * (2 * node_radius_out) + max(0, num_outputs_cfg_vis - 1) * spacing_between_nodes_out
-                start_y_out = 0.5 + total_height_nodes_out / 2.0 - node_radius_out
-
-                for j in range(num_outputs_cfg_vis):
-                    network_output_node_id = genome_output_keys[j]
-                    if network_output_node_id in pos: # Ensure the node exists in the network drawing
-                        ax_network_coord = pos[network_output_node_id]
-
-                        # Calculate y-position of the j-th circle in ax_output
-                        y_pos_circle_out = start_y_out - j * (2 * node_radius_out + spacing_between_nodes_out)
-                        # Connect to the left edge (x=0.0) of the ax_output subplot, aligned with the circle's y
-                        ax_output_coord = (0.0, y_pos_circle_out)
-
-                        con = ConnectionPatch(xyA=ax_network_coord, xyB=ax_output_coord,
-                                              coordsA="data", coordsB="data",
-                                              axesA=self.ax_network, axesB=self.ax_output,
-                                              color="gray", linestyle=":", alpha=0.4, linewidth=0.5, zorder=-1)
-                        self.fig.add_artist(con)
-                        self.inter_ax_patches.append(con)
-        
-        # 4. Draw output neurons with activation visualization
-        # Use current_output_activations which is set based on mock or real mode
-        if current_output_activations is None or len(current_output_activations) != self.config.genome_config.num_outputs:
-            current_output_activations = [0.0] * self.config.genome_config.num_outputs
-
-        num_outputs_cfg = self.config.genome_config.num_outputs
-        for i, act_val in enumerate(current_output_activations):
-            act = max(0, min(1, act_val))
-            alpha_val = int(act * 200 + 55)
-            if alpha_val > 255: alpha_val = 255
-            if alpha_val < 0: alpha_val = 0
-            color_hex = f"{alpha_val:02x}"
-            color = f'#59a14f{color_hex}'
-
-            node_radius = 0.10 # Relative radius
-            # Spread out vertically, centered in the 0-1 box
-            # Total height for nodes: num_outputs_cfg * (2*node_radius + spacing_factor)
-            # Let's use a fixed spacing for simplicity
-            spacing_between_nodes = node_radius * 0.5
-            total_height_nodes = num_outputs_cfg * (2*node_radius) + max(0, num_outputs_cfg - 1) * spacing_between_nodes
-            start_y = 0.5 + total_height_nodes/2.0 - node_radius # Top of highest node
-
-            y_pos = start_y - i * (2*node_radius + spacing_between_nodes)
-
-            self.ax_output.add_patch(plt.Circle(
-                (0.5, y_pos), node_radius,
-                color=color,
-                alpha=0.7 + act * 0.3,
-                edgecolor='dimgray',
-                linewidth=1.5
-            ))
-
-        self.ax_output.set_title('Outputs', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
-        self.ax_output.set_xlim(0, 1)
-        self.ax_output.set_ylim(0, 1)
-
-        # 5. Draw prediction text
+        # 4. Draw prediction text
         # Use current_prediction which is set based on mock or real mode
         if current_prediction is None:
             current_prediction = "?"
