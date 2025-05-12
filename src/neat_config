@@ -6,7 +6,7 @@ fitness_threshold = 1.0
 
 [DefaultGenome]
 # node parameters
-num_inputs = 256
+num_inputs = 80
 num_outputs = 26
 num_hidden = 7
 feed_forward = True

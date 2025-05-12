@@ -223,9 +223,9 @@ class NEATVisualization:
         num_inputs_cfg = self.config.genome_config.num_inputs
         G_input.add_nodes_from(range(num_inputs_cfg))
 
-        # Calculate positions for input neurons in a 16x16 grid
+        # Calculate positions for input neurons in an 8x10 grid
         input_pos = {}
-        rows, cols = 16, 16 # Updated to 16x16 grid
+        rows, cols = 8, 10 # Updated to 8x10 grid
         # Adjust spacing and centering for the grid
         x_spacing = 1.0 / (cols - 1) if cols > 1 else 0
         y_spacing = 1.0 / (rows - 1) if rows > 1 else 0

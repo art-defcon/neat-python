@@ -179,13 +179,13 @@ class NEATLogic:
 
             # Crop the pattern: remove first 4 rows, last 4 rows, first 5 columns, last 5 columns
             # Original size: 16x16
-            # Rows to keep: 4 to 11 (inclusive)
-            # Columns to keep: 5 to 10 (inclusive)
+            # Rows to keep: 4 to 12 (inclusive)
+            # Columns to keep: 4 to 12 (inclusive)
             
-            #cropped_pattern = pattern[4:13, 5:11]
-            #return cropped_pattern, letter # Return the cropped pattern and the actual letter
+            cropped_pattern = pattern[4:12, 3:13]
+            return cropped_pattern, letter # Return the cropped pattern and the actual letter
             
-            return pattern, letter # Return the pattern and the actual letter
+            #return pattern, letter # Return the pattern and the actual letter
         
         except Exception as e:
             print(f"Error generating letter pattern for '{letter}': {e}")
