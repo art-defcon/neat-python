@@ -1,40 +1,60 @@
 # NEAT Letter Classifier
 
+## What is NEAT?
+NEAT (NeuroEvolution of Augmenting Topologies) is a genetic algorithm for evolving artificial neural networks. It starts with a simple network and complexifies it over generations by adding new neurons and connections through mutation, while also optimizing the weights of existing connections. This allows NEAT to discover novel and increasingly complex network structures.
+
 ## Project Overview
-This application demonstrates the NeuroEvolution of Augmenting Topologies (NEAT) algorithm applied to a letter classification task. The application features a dynamic, interactive interface for controlling NEAT parameters, visualizing the evolving neural network in real-time, and observing its performance. Users can configure settings like population size, mutation rates, and evaluation trials before starting an automated evolution process.
+This application demonstrates the NeuroEvolution of Augmenting Topologies (NEAT) algorithm applied to a letter classification task. While NEAT might not be the the best (or even good;)  or efficient approach for my own curiosity to explore NEAT's capabilities and visualize its evolutionary process in a tangible way.
 
-## Technology Stack
-- **Core Logic**:
-    - **NEAT Algorithm**: Implemented using [neat-python](https://github.com/CodeReclaimers/neat-python) library
-    - **Letter Generation**: Randomized font selection + random A/B/C generation
-    - **Rasterization**: 16x16 pixel grid representation of letters (Note: `neat_logic.py` uses 16x16, `neat_config` num_inputs is 256).
-    - **Classification**: NEAT network evaluates input patterns and outputs A/B/C predictions
-- **Frontend**:
-    - **Framework/Library**: PyQt5
-    - **Language**: Python 3.10+
-    - **UI Components**:
-        - Three-pane layout with interactive controls.
-        - Grouped "Evolution Settings" with sliders for Population Size, Fitness Threshold, Evaluation Trials per Network, and various Mutation Rates (Weight Mutate, Weight Replace, Connection Add, Node Add).
-        - Real-time network visualization.
-        - Live classification results.
-    - **Styling**: Dark theme with VS Code-like aesthetics.
-- **Visualization**:
-    - **Network Graph**: Using NetworkX + Matplotlib for dynamic node/edge rendering.
-    - **Pixel Grid**: 16x16 rasterized letter display.
-    - **Activation Visualization**: Color intensity for neuron activations.
+The application features interactive interface for controlling NEAT parameters, visualizing the evolving neural network in real-time, and observing its performance. Users can configure settings like population size, mutation rates, and evaluation trials before starting an automated evolution process.
 
-### Requirements
-To run the application, you'll need:
+## Screenshot
+![Screenshot of the NEAT Letter Classifier application](https://github.com/art-defcon/neat-python/blob/main/public/screenshot.png?raw=true)
+
+## Technology Stack and Libraries
+
+This project utilizes the following technologies and libraries:
+
+-   **Python 3.10+**: The primary programming language.
+-   **PyQt5**: Used for building the graphical user interface.
+-   **matplotlib**: Used for plotting and visualization, specifically for the fitness history graph and network visualization.
+-   **networkx**: Used for representing and manipulating the neural network graph structure for visualization.
+-   **numpy**: Used for numerical operations, particularly in handling the pixel grid representation of letters.
+-   **NEAT Algorithm**: The core of this project is the NeuroEvolution of Augmenting Topologies (NEAT) algorithm, implemented using the excellent [neat-python](https://github.com/CodeReclaimers/neat-python) library by CodeReclaimers.
+
+### Installation and Running
+
+To get started with the NEAT Letter Classifier, follow these steps:
+
+**1. Clone the repository:**
+
+```bash
+git clone https://github.com/art-defcon/neat-python.git
+cd neat-python
+```
+
+**2. Install the required libraries:**
+
 ```bash
 pip install PyQt5 matplotlib neat-python networkx numpy
 ```
 
+**3. Run the application:**
+
+```bash
+python src/app.py
+```
+
 ### Basic Usage
-The PyQt version offers:
-- Interactive configuration of NEAT parameters before starting evolution.
-- Smoother animations for network visualization.
-- More responsive UI controls.
-- Better high-DPI display support.
+
+Once the application is running, you can:
+
+- Configure NEAT parameters using the sliders in the left pane.
+- Click "Start Auto-Evolve" to begin the evolutionary process.
+- Observe the evolving network topology and performance in the center and right panes.
+- Click "Randomize New Letter" to test the current best network on a new letter (when not in auto-evolve mode).
+- BUG: Closing app/window sometimes leaves "Auto-Evolve" running in background and you might need to kill process (for instance by running "pkill python")
+- TODO: I dont really handle end state when it solves the task very graceful 
 
 ## Key Features
 - **Interactive NEAT Parameters**:
@@ -57,8 +77,6 @@ The PyQt version offers:
         - Display of Generation, Best Fitness (individual), Average Population Fitness.
         - Display of "Total Evaluations (Last Gen)".
         - Compact Fitness History graph.
-- **Dark Theme**: Professional, VS Code-like appearance.
-- **Data Correction**: Modal dialog for users to input and label training samples (if this feature is still active/relevant).
 
 ## ASCII Wireframe Layout (Conceptual Update)
 ```
@@ -85,5 +103,3 @@ The PyQt version offers:
 |                           |                      |             |
 +---------------------------+-----------------------+-------------+
 ```
-
-For more details on the NEAT algorithm concepts like population and generations, and the planned implementation changes, please refer to `about_neat.md` and `implementation.md` respectively.
