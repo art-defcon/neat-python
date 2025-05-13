@@ -15,7 +15,7 @@ class NEATLogic:
         self.current_letter = None # May not be needed if evaluate handles its own letters
         self.stats_reporter = None
         self.num_evaluation_trials = 1 # Default, will be overridden by reconfigure_neat
-        self.letter_options = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'] # Define possible letters
+        self.letter_options = ['A', 'B', 'C', 'D', 'E', 'F'] #, 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'] # Define possible letters
         self.image_size = (16, 16) # Define image size for letter patterns
 
     def setup_neat(self):

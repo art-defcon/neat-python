@@ -16,7 +16,11 @@ fitness_threshold = 1.0
 # Number of input neurons
 num_inputs = 80
 # Number of output neurons
-num_outputs = 26
+# Full alphabet (26 letters)
+# num_outputs = 26  
+# ABC
+num_outputs = 6 
+
 # Number of hidden neurons (initially)
 num_hidden = 1
 # Whether the network is feed-forward (no cycles)
