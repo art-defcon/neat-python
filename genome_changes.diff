@@ -1,0 +1,86 @@
+--- genome_original.py	2025-05-13 20:28:08
++++ genome_modified.py	2025-05-13 20:28:37
+@@ -109,11 +109,29 @@
+ 
+     def get_new_node_key(self, node_dict):
+         if self.node_indexer is None:
+-            self.node_indexer = count(max(list(iterkeys(node_dict))) + 1)
++            if not node_dict:
++                # If node_dict is empty, existing keys could be considered empty or max key is < 0.
++                # Let's define current_max_key such that new keys start from 0.
++                current_max_key = -1
++            else:
++                current_max_key = max(list(iterkeys(node_dict)))
++            
++            # New node IDs must be non-negative.
++            # If current_max_key is, for example, -2 (an invalid state for node_dict,
++            # perhaps inherited), current_max_key + 1 would be -1. max(0, -1) is 0.
++            # If current_max_key is -1 (e.g. from an empty dict),
++            # current_max_key + 1 would be 0. max(0, 0) is 0.
++            # If current_max_key is positive (e.g. 5),
++            # current_max_key + 1 would be 6. max(0, 6) is 6.
++            # This ensures new node IDs start at 0 or a positive number.
++            start_idx = max(0, current_max_key + 1)
++            self.node_indexer = count(start_idx)
+ 
+         new_id = next(self.node_indexer)
+ 
+-        assert new_id not in node_dict
++        # Ensure the new node key is not already in the dictionary.
++        # This assertion is important for correctness.
++        assert new_id not in node_dict, "New node ID {0} already exists in node_dict".format(new_id)
+ 
+         return new_id
+ 
+@@ -242,12 +260,23 @@
+ 
+         # Inherit connection genes
+         for key, cg1 in iteritems(parent1.connections):
++            # key is (input_node_key, output_node_key)
++            # A connection should not target an input node (which has a negative key).
++            # Output/hidden nodes (valid targets) have non-negative keys.
++            if key[1] < 0:
++                # This connection targets a negative-keyed node, which is invalid.
++                # Skip inheriting this connection to prevent propagation of invalid topology.
++                # Consider adding a warning log here if this happens frequently.
++                # print(f"Warning: Skipping inheritance of invalid connection {key} from parent genome {parent1.key}.")
++                continue
++
+             cg2 = parent2.connections.get(key)
+             if cg2 is None:
+                 # Excess or disjoint gene: copy from the fittest parent.
+                 self.connections[key] = cg1.copy()
+             else:
+                 # Homologous gene: combine genes from both parents.
++                # cg2.key[1] should also be non-negative due to key equality.
+                 self.connections[key] = cg1.crossover(cg2)
+ 
+         # Inherit node genes
+@@ -341,10 +370,24 @@
+         Attempt to add a new connection, the only restriction being that the output
+         node cannot be one of the network input pins.
+         """
+-        possible_outputs = list(iterkeys(self.nodes))
+-        out_node = choice(possible_outputs)
++        all_current_node_keys = list(iterkeys(self.nodes))
++        
++        # Output node for a new connection must be a hidden or output node,
++        # which should have non-negative keys.
++        valid_target_nodes = [k for k in all_current_node_keys if k >= 0]
+ 
+-        possible_inputs = possible_outputs + config.input_keys
++        if not valid_target_nodes:
++            # No valid target nodes available (e.g., if all nodes in self.nodes somehow have negative keys,
++            # or self.nodes is empty). This shouldn't happen in a healthy genome with output nodes.
++            return
++
++        out_node = choice(valid_target_nodes)
++
++        # Input node can be any existing node (input, hidden, or output).
++        # config.input_keys are negative. all_current_node_keys contains hidden/output node keys.
++        possible_inputs = all_current_node_keys + config.input_keys
++        if not possible_inputs: # Should not happen if there are inputs or nodes.
++            return
+         in_node = choice(possible_inputs)
+ 
+         # Don't duplicate connections.
