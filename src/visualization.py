@@ -25,110 +25,221 @@ class NEATVisualization:
         self.current_letter = None # This should ideally come from the main app logic
         self.inter_ax_patches = [] # To store ConnectionPatch objects
 
+    def get_activation_color(self, value, min_val=0.0, max_val=1.0, color_low=(0.2, 0.2, 0.8), color_mid=(0.9, 0.9, 0.9), color_high=(0.8, 0.2, 0.2)):
+        """Calculates a color based on an activation value within a range."""
+        # Ensure value is clamped
+        value = max(min_val, min(value, max_val))
+        if abs(max_val - min_val) < 1e-6: # Avoid division by zero if range is effectively zero
+            return color_mid if value >= min_val else color_low
+
+        # Normalize value to 0-1 range
+        norm_value = (value - min_val) / (max_val - min_val)
+
+        if norm_value < 0.5:
+            # Interpolate between low and mid
+            interp = norm_value * 2.0 # Scale to 0-1 for this half
+            r = color_low[0] * (1 - interp) + color_mid[0] * interp
+            g = color_low[1] * (1 - interp) + color_mid[1] * interp
+            b = color_low[2] * (1 - interp) + color_mid[2] * interp
+        else:
+            # Interpolate between mid and high
+            interp = (norm_value - 0.5) * 2.0 # Scale to 0-1 for this half
+            r = color_mid[0] * (1 - interp) + color_high[0] * interp
+            g = color_mid[1] * (1 - interp) + color_high[1] * interp
+            b = color_mid[2] * (1 - interp) + color_high[2] * interp
+        return (r, g, b)
+
     def _calculate_node_levels(self, genome, config_input_keys, config_output_keys):
-        """Calculates the 'level' of each node based on its shortest path from an input node."""
-        node_levels = {}
+        """
+        Calculates the 'level' of each node based on the new layout strategy:
+        - Inputs on layer 0.
+        - Connected hidden nodes layered by distance from inputs.
+        - Disconnected hidden nodes on their own layer before outputs.
+        - Outputs on the rightmost layer.
+        """
+        node_levels = {}  # node_id -> level
         all_genome_nodes = set(genome.nodes.keys())
-
+        
+        # Initialize levels to None (or a placeholder indicating not yet assigned)
         for node_id in all_genome_nodes:
-            node_levels[node_id] = float('inf')
+            node_levels[node_id] = None
 
-        input_nodes = sorted([n_id for n_id in all_genome_nodes if n_id in config_input_keys])
-        for node_id in input_nodes:
+        # 1. Assign Input Layer (Level 0)
+        input_node_ids = sorted([n_id for n_id in all_genome_nodes if n_id in config_input_keys])
+        for node_id in input_node_ids:
             node_levels[node_id] = 0
+        
+        max_level_so_far = 0
+        if input_node_ids: # Only update if there are inputs
+            max_level_so_far = 0
 
-        # Build adjacency list for BFS (only forward, enabled connections)
+        # Build adjacency list for BFS (only enabled connections)
         adj = {node_id: [] for node_id in all_genome_nodes}
-        if genome.connections: # Only build adj list if there are connections
+        # Also, count degrees for identifying disconnected hidden nodes
+        node_degrees = {node_id: 0 for node_id in all_genome_nodes}
+
+        if genome.connections:
             for conn_key, conn in genome.connections.items():
                 if getattr(conn, 'enabled', True):
                     u, v = conn.key
-                    # Ensure nodes in connection are part of the genome's node set
                     if u in all_genome_nodes and v in all_genome_nodes:
                         adj[u].append(v)
+                        node_degrees[u] += 1
+                        node_degrees[v] += 1
         
+        # 2. Layer Connected Hidden Nodes (BFS from inputs)
+        # Only consider paths to other hidden nodes or output nodes for layering connected hidden nodes
         queue = deque()
-        for node_id in input_nodes:
-            queue.append((node_id, 0))
+        visited_for_bfs = set()
 
-        max_level = 0
-        # BFS to calculate levels
-        visited_during_bfs = set(input_nodes) # Keep track of nodes added to queue to avoid cycles / redundant processing
+        for node_id in input_node_ids:
+            queue.append((node_id, 0)) # (node, current_level_from_input)
+            visited_for_bfs.add(node_id)
+
+        temp_hidden_levels = {} # Store levels for hidden nodes found via BFS
 
         while queue:
             u, level_u = queue.popleft()
-            max_level = max(max_level, level_u)
 
-            # Sort neighbors for deterministic layout, though BFS itself handles shortest path
+            # Iterate through neighbors
             sorted_neighbors = sorted(adj.get(u, []))
-
             for v in sorted_neighbors:
-                # If we find a path to v, and it's shorter or the first time, update its level
-                if node_levels[v] > level_u + 1: # Check if new path is shorter
-                    node_levels[v] = level_u + 1
-                    if v not in visited_during_bfs:
-                         queue.append((v, level_u + 1))
-                         visited_during_bfs.add(v)
-                elif node_levels[v] == float('inf'): # First time reaching this node
-                    node_levels[v] = level_u + 1
-                    if v not in visited_during_bfs:
-                        queue.append((v, level_u + 1))
-                        visited_during_bfs.add(v)
+                if v in config_input_keys: # Don't go backward to an input node
+                    continue
+
+                new_level_v = level_u + 1
+                
+                if v in config_output_keys: # Path reaches an output node
+                    # We don't assign levels to outputs here, but this path contributes to max_level_so_far
+                    max_level_so_far = max(max_level_so_far, new_level_v -1) # -1 because output is next level
+                    continue # Stop BFS path here for outputs
+
+                # If v is a hidden node
+                if v not in config_input_keys and v not in config_output_keys:
+                    if v not in temp_hidden_levels or new_level_v < temp_hidden_levels[v]:
+                        temp_hidden_levels[v] = new_level_v
+                        max_level_so_far = max(max_level_so_far, new_level_v)
+                        if v not in visited_for_bfs: # Add to queue only if not visited or found shorter path
+                             queue.append((v, new_level_v))
+                             visited_for_bfs.add(v) # Mark as visited to handle cycles/multiple paths
+
+        # Assign BFS-derived levels to connected hidden nodes
+        for h_node, h_level in temp_hidden_levels.items():
+            node_levels[h_node] = h_level
 
 
-        # Handle unreachable nodes or nodes in a genome with no connections
-        # Output nodes not reached by BFS: place them after the max_level found.
-        # Hidden nodes not reached: place them similarly.
+        # 3. Identify Disconnected Hidden Nodes
+        disconnected_hidden_node_ids = []
+        all_hidden_node_ids = [n_id for n_id in all_genome_nodes if n_id not in config_input_keys and n_id not in config_output_keys]
+
+        for h_node_id in all_hidden_node_ids:
+            is_disconnected = False
+            # Condition 1: Not reached by BFS from any input (level is still None)
+            if node_levels[h_node_id] is None:
+                is_disconnected = True
+            # Condition 2: Degree < 2 (even if reached by BFS, but user wants it separate)
+            if node_degrees.get(h_node_id, 0) < 2:
+                is_disconnected = True
+                if node_levels[h_node_id] is not None: # Was assigned a level by BFS
+                    # print(f"[VIS-INFO] Hidden node {h_node_id} has degree < 2, re-classifying as disconnected.")
+                    node_levels[h_node_id] = None # Reset its level, will be placed in disconnected layer
+
+            if is_disconnected:
+                disconnected_hidden_node_ids.append(h_node_id)
         
-        # Determine max_level from reachable nodes first
-        current_max_reachable_level = 0
-        has_reachable_nodes = False
-        for node_id in all_genome_nodes:
-            if node_levels[node_id] != float('inf'):
-                current_max_reachable_level = max(current_max_reachable_level, node_levels[node_id])
-                has_reachable_nodes = True
+        disconnected_hidden_node_ids = sorted(list(set(disconnected_hidden_node_ids))) # Unique and sorted
+
+        # 4. Determine Placement for Disconnected and Output Layers
+        # `max_level_so_far` currently holds the max level of connected hidden nodes (or 0 if no inputs/hidden)
         
-        if not has_reachable_nodes and not input_nodes: # Completely empty or isolated graph with no inputs
-             max_level = 0 # Default max_level if no nodes were processed (e.g. no inputs)
+        final_disconnected_layer = -1 # Placeholder if no disconnected nodes
+        final_output_layer = -1       # Placeholder
+
+        if not disconnected_hidden_node_ids:
+            # No disconnected hidden nodes, outputs go directly after connected hidden nodes
+            final_output_layer = max_level_so_far + 1
         else:
-             max_level = current_max_reachable_level
+            # There are disconnected hidden nodes
+            tentative_disconnected_layer = max_level_so_far + 1
+            tentative_output_layer = tentative_disconnected_layer + 1 # Outputs are one step after disconnected
 
+            # Check for conflict: if tentative_disconnected_layer is already occupied by a *connected* hidden node
+            # This should not happen if max_level_so_far was calculated correctly from connected hidden nodes.
+            # However, as a safeguard or if logic changes:
+            is_conflict = False
+            for h_node_id, h_level in node_levels.items():
+                if h_level == tentative_disconnected_layer and h_node_id not in disconnected_hidden_node_ids and h_node_id in all_hidden_node_ids:
+                    is_conflict = True
+                    # print(f"[VIS-WARN] Conflict: Tentative disconnected layer {tentative_disconnected_layer} occupied by connected hidden node {h_node_id}.")
+                    break
+            
+            if is_conflict: # Should be rare with current logic
+                final_disconnected_layer = tentative_disconnected_layer + 1
+                final_output_layer = final_disconnected_layer + 1
+            else:
+                final_disconnected_layer = tentative_disconnected_layer
+                final_output_layer = tentative_output_layer
 
-        # Assign levels to unreachable output/hidden nodes
-        # These will be placed one level beyond the max reachable level.
-        output_node_ids = sorted([n_id for n_id in all_genome_nodes if n_id in config_output_keys])
-        hidden_node_ids = sorted([n_id for n_id in all_genome_nodes if n_id not in config_input_keys and n_id not in config_output_keys])
-
-        unreachable_level_offset = 1
-
-        for node_id in output_node_ids:
-            if node_levels[node_id] == float('inf'):
-                # If no connections at all, and no inputs, place outputs at level 1
-                if not genome.connections and not input_nodes:
-                    node_levels[node_id] = 1
-                    max_level = max(max_level, 1)
-                else: # Otherwise, place after all reachable nodes
-                    node_levels[node_id] = max_level + unreachable_level_offset
-                    max_level = max(max_level, node_levels[node_id])
-
-
-        for node_id in hidden_node_ids:
-            if node_levels[node_id] == float('inf'):
-                if not genome.connections and not input_nodes: # Should be rare for hidden nodes
-                    node_levels[node_id] = 1 
-                    max_level = max(max_level, 1)
-                else:
-                    node_levels[node_id] = max_level + unreachable_level_offset # Could be same level as unreachable outputs or further
-                    max_level = max(max_level, node_levels[node_id])
+        # 5. Assign Levels
+        if final_disconnected_layer != -1:
+            for dh_node_id in disconnected_hidden_node_ids:
+                node_levels[dh_node_id] = final_disconnected_layer
         
-        # Final fallback for any node still at infinity (should not happen with above logic)
-        for node_id in all_genome_nodes:
-            if node_levels[node_id] == float('inf'):
-                # print(f"[VIS-WARN] Node {node_id} remained at level inf. Defaulting to 0.")
-                node_levels[node_id] = 0 # Default to level 0 as a last resort
-                max_level = max(max_level, 0)
+        output_node_ids = sorted([n_id for n_id in all_genome_nodes if n_id in config_output_keys])
+        for o_node_id in output_node_ids:
+            node_levels[o_node_id] = final_output_layer
 
-        return node_levels, max_level
+
+        # 6. Handle any remaining unassigned nodes (fallback, should be rare)
+        for node_id, level in node_levels.items():
+            if level is None:
+                # print(f"[VIS-WARN] Node {node_id} remained unassigned. Placing in default layer.")
+                if node_id in all_hidden_node_ids:
+                    node_levels[node_id] = final_disconnected_layer if final_disconnected_layer != -1 else max_level_so_far + 1
+                elif node_id in output_node_ids:
+                     node_levels[node_id] = final_output_layer
+                else: # Should not happen for inputs
+                    node_levels[node_id] = 0 # Default to input layer as last resort
+
+        # 7. Normalize Levels to be contiguous (0, 1, 2, ...)
+        # This ensures that layers are compact if some intermediate layers ended up empty.
+        unique_sorted_levels = sorted(list(set(l for l in node_levels.values() if l is not None and l != float('inf'))))
+        
+        level_map = {old_level: new_level for new_level, old_level in enumerate(unique_sorted_levels)}
+        
+        final_node_levels = {}
+        current_max_normalized_level = 0
+        if not level_map: # Handles empty graph or graph with no assigned levels
+            if not all_genome_nodes: # Truly empty genome
+                 return {}, 0
+            else: # Nodes exist but no levels assigned (e.g. only outputs, no inputs)
+                # Fallback: assign all to level 0 or handle as per specific rules for such cases
+                # For now, if only outputs, they should have been assigned final_output_layer.
+                # This case implies something went very wrong or an edge case not fully covered.
+                # print("[VIS-WARN] Level map is empty, but nodes exist. Defaulting levels.")
+                # Default all to 0 if not already set.
+                for node_id in all_genome_nodes:
+                    final_node_levels[node_id] = node_levels.get(node_id, 0) # Use existing if somehow set, else 0
+                current_max_normalized_level = 0
+        else:
+            for node_id, old_level in node_levels.items():
+                if old_level is not None and old_level != float('inf'):
+                    new_level = level_map.get(old_level, 0) # Default to 0 if old_level not in map (should not happen)
+                    final_node_levels[node_id] = new_level
+                    current_max_normalized_level = max(current_max_normalized_level, new_level)
+                else: # Handle nodes that might still be inf or None (should be resolved by fallback)
+                    # print(f"[VIS-WARN] Node {node_id} has problematic level {old_level} before normalization.")
+                    final_node_levels[node_id] = 0 # Default to 0
+
+        # Ensure all genome nodes are in final_node_levels
+        for node_id in all_genome_nodes:
+            if node_id not in final_node_levels:
+                # print(f"[VIS-WARN] Node {node_id} was missing from final_node_levels. Defaulting to level 0.")
+                final_node_levels[node_id] = 0
+                current_max_normalized_level = max(current_max_normalized_level, 0)
+
+
+        return final_node_levels, current_max_normalized_level
 
     def create_visualization(self):
         """Center pane - Network Visualization"""
@@ -178,272 +289,257 @@ class NEATVisualization:
         self.main_layout.addWidget(self.viz_widget, stretch=1)
 
     def draw_network(self, genome,
-                       actual_letter_pattern=None, actual_output_activations=None, actual_prediction=None,
-                       actual_letter=None, # Added actual_letter parameter
+                       actual_letter_pattern=None,
+                       hidden_node_activations=None, # NEW: Expect hidden activations
+                       actual_output_activations=None,
+                       actual_prediction=None,
+                       actual_letter=None,
                        is_correct=None):
-        """Draw complete visualization including raster grid, network, and prediction"""
-        # Clear previous inter-axes connection patches
+        """Draw complete visualization including raster grid, network, and prediction with new layout and visuals."""
+        
+        # --- Setup & Clearing ---
         if hasattr(self, 'inter_ax_patches'):
             for patch in self.inter_ax_patches:
                 if patch in self.fig.artists:
                     patch.remove()
         self.inter_ax_patches = []
 
-        # Clear all axes
-        for ax in [self.ax_input, self.ax_network, self.ax_pred]: # Removed ax_output
+        for ax in [self.ax_input, self.ax_network, self.ax_pred]:
             ax.clear()
             ax.set_xticks([])
             ax.set_yticks([])
 
-        # Ensure square aspect ratio after clearing
         self.ax_input.set_aspect('equal', adjustable='box')
-
-        # Style spines for each subplot on redraw as clear() might reset them
-        for ax_obj in [self.ax_input, self.ax_network, self.ax_pred]: # Removed ax_output
+        for ax_obj in [self.ax_input, self.ax_network, self.ax_pred]:
             for spine in ax_obj.spines.values():
-                spine.set_visible(False) # Make spines invisible
-
-        # Set facecolor for ax_input only
+                spine.set_visible(False)
         self.ax_input.set_facecolor('#1e1e1e')
-        # Set facecolor to none for ax_network and ax_pred for transparency
         self.ax_network.set_facecolor('none')
         self.ax_pred.set_facecolor('none')
 
-        current_letter_pattern = actual_letter_pattern
-        current_output_activations = actual_output_activations
+        # --- Data Preparation ---
+        current_letter_pattern = actual_letter_pattern if actual_letter_pattern is not None else np.zeros((8, 10)) # Adjusted default size
+        flattened_pattern = current_letter_pattern.flatten()
+        
+        # Default hidden activations if not provided
+        current_hidden_activations = hidden_node_activations if hidden_node_activations is not None else {}
+        
+        # Default output activations if not provided
+        num_outputs_cfg = self.config.genome_config.num_outputs
+        current_output_activations = actual_output_activations if actual_output_activations is not None else [0.0] * num_outputs_cfg
+        
         current_prediction = actual_prediction
+        
+        # Map output node IDs to letters (assuming alphabetical order A, B, C...)
+        # Ensure output_keys are sorted numerically before assigning letters
+        sorted_output_keys = sorted(list(self.config.genome_config.output_keys))
+        output_labels = {key: chr(ord('A') + i) for i, key in enumerate(sorted_output_keys)}
+        predicted_output_node_id = None
+        if current_prediction:
+            try:
+                pred_index = ['A', 'B', 'C'].index(current_prediction) # Assuming A, B, C
+                if pred_index < len(sorted_output_keys):
+                    predicted_output_node_id = sorted_output_keys[pred_index]
+            except ValueError:
+                pass # Prediction not in A, B, C
 
-        # Ensure current_letter_pattern is not None before imshow
-        if current_letter_pattern is None:
-             current_letter_pattern = np.zeros((16,16)) # Default to blank if None
-
-        # 1.  Draw input neurons 
+        # --- 1. Draw Input Neurons (ax_input) ---
         G_input = nx.DiGraph()
-        # Ensure input nodes are added based on the actual config
         num_inputs_cfg = self.config.genome_config.num_inputs
-        G_input.add_nodes_from(range(num_inputs_cfg))
+        G_input.add_nodes_from(range(num_inputs_cfg)) # Use range for visual indexing
 
-        # Calculate positions for input neurons in an 8x10 grid
         input_pos = {}
-        rows, cols = 8, 10 # Updated to 8x10 grid
-        # Adjust spacing and centering for the grid
+        rows, cols = 8, 10 # Grid size
         x_spacing = 1.0 / (cols - 1) if cols > 1 else 0
         y_spacing = 1.0 / (rows - 1) if rows > 1 else 0
-
         for i in range(num_inputs_cfg):
-            # Assuming row-major order for flattened image data
-            row = i // cols
-            col = i % cols
-            # Map grid coordinates to plot coordinates (adjusting for origin and scaling)
-            # Reverse vertical order, keep horizontal order direct
+            row, col = i // cols, i % cols
             input_pos[i] = (col * x_spacing, (rows - 1 - row) * y_spacing)
 
-        # Determine node colors based on activation (pixel value)
         input_node_colors = []
-        if current_letter_pattern is not None:
-            flattened_pattern = current_letter_pattern.flatten()
-            for i in range(num_inputs_cfg):
-                if i < len(flattened_pattern):
-                    # Color based on pixel value (0 or 1)
-                    color = '#4e79a7' if flattened_pattern[i] == 0 else '#f28e2b' # Blue for 0, Orange for 1
-                    input_node_colors.append(color)
-                else:
-                    input_node_colors.append('#4e79a7') # Default color if pattern is smaller
+        for i in range(num_inputs_cfg):
+            activation = flattened_pattern[i] if i < len(flattened_pattern) else 0.0
+            # Use get_activation_color for input nodes in ax_input
+            color = self.get_activation_color(activation, min_val=0.0, max_val=1.0, color_low=(0.2, 0.2, 0.8), color_high=(0.8, 0.5, 0.2)) # Blue to Orange
+            input_node_colors.append(color)
 
         nx.draw_networkx_nodes(G_input, input_pos, ax=self.ax_input,
-                                 nodelist=list(range(num_inputs_cfg)), # Explicitly pass nodelist
-                                 node_color=input_node_colors, node_size=10, # Reduced node size for 16x16 grid
-                                 edgecolors='dimgray', linewidths=0.5) 
+                                 nodelist=list(range(num_inputs_cfg)),
+                                 node_color=input_node_colors, node_size=10,
+                                 edgecolors='dimgray', linewidths=0.5)
         self.ax_input.set_title('Input Neurons', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
-
-        # Set limits to encompass the grid
         self.ax_input.set_xlim(-0.1, 1.1)
         self.ax_input.set_ylim(-0.1, 1.1)
-        # Removed self.ax_input.invert_yaxis()
 
-        # 3. Draw main network topology
+        # --- 2. Draw Main Network Topology (ax_network) ---
         G = nx.DiGraph()
-
-        # Force initial topology if empty (This logic might need to be in the main app or passed in)
-        # For now, assuming genome has nodes and connections
-        if not genome.connections and not genome.nodes:
-             # Handle case where genome is truly empty, maybe draw a default structure or nothing
-             pass # Or add some default nodes/connections for visualization purposes
-
-        # Add nodes and define layout/styling
-        pos = {}
-        node_colors_list = [] # Renamed to avoid conflict
-        node_sizes_list = []  # Renamed to avoid conflict
-
-        num_inputs = self.config.genome_config.num_inputs
-
-        color_map = {
-            'input': '#4e79a7', 'hidden': '#f28e2b',
-            'output': '#e15759', 'bias': '#76b7b2'
-        }
-
-        # Use config keys for proper node identification based on neat-python conventions
-        config_input_keys = set(self.config.genome_config.input_keys)
-        config_output_keys = set(self.config.genome_config.output_keys)
-        
-        print(f"[VIS] draw_network called. Genome key: {genome.key if genome else 'None'}")
-        if genome:
-            print(f"[VIS] Genome has {len(genome.nodes)} nodes and {len(genome.connections)} connections.")
-        else:
-            print("[VIS] Genome is None.")
-            # Handle drawing for None genome if necessary, or return
+        if not genome:
+            print("[VIS] Genome is None. Cannot draw network.")
             self.canvas.draw()
             plt.pause(0.01)
             return
 
+        config_input_keys = set(self.config.genome_config.input_keys)
+        config_output_keys = set(self.config.genome_config.output_keys)
         current_genome_node_ids = set(genome.nodes.keys())
 
-        input_node_ids = sorted([n_id for n_id in current_genome_node_ids if n_id in config_input_keys])
-        output_node_ids = sorted([n_id for n_id in current_genome_node_ids if n_id in config_output_keys])
-        hidden_node_ids = sorted([n_id for n_id in current_genome_node_ids if n_id not in config_input_keys and n_id not in config_output_keys])
-        
-        print(f"[VIS] Categorized nodes: Inputs({len(input_node_ids)}): {input_node_ids[:5]}..., Hidden({len(hidden_node_ids)}): {hidden_node_ids[:5]}..., Outputs({len(output_node_ids)}): {output_node_ids}")
-
-        # Calculate node levels for layered layout
+        # Calculate node levels using the updated method
         node_levels, max_level = self._calculate_node_levels(genome, config_input_keys, config_output_keys)
-        # print(f"[VIS] Node levels calculated: {node_levels}, Max level: {max_level}")
 
-        # Define get_y_pos locally
+        # --- Position Calculation ---
+        pos = {}
+        nodes_by_level = {}
+        for node_id_val, level_val in node_levels.items():
+            if node_id_val in current_genome_node_ids: # Ensure node exists in genome
+                 nodes_by_level.setdefault(level_val, []).append(node_id_val)
+
+        input_x_coord = 0.0
+        x_increment_per_level = 1.5 # Horizontal spacing
+
         def get_y_pos_local(nodes_in_list, current_idx_in_list):
-            if not nodes_in_list: return 0
             num_nodes_in_list = len(nodes_in_list)
-            if num_nodes_in_list == 0: return 0
-            max_spread = 10.0  # Max vertical spread for a layer
-            node_spacing_val = max_spread / float(num_nodes_in_list) if num_nodes_in_list > 1 else 0
+            if num_nodes_in_list <= 1: return 0
+            max_spread = 10.0
+            node_spacing_val = max_spread / float(num_nodes_in_list - 1)
             return -(current_idx_in_list * node_spacing_val - (num_nodes_in_list - 1) * node_spacing_val / 2.0)
 
         all_nodes_for_graph = []
-        pos = {} # Reset pos
-        node_colors_list = [] # Reset
-        node_sizes_list = [] # Reset
+        node_colors_list = []
+        node_sizes_list = []
+        node_edgecolors_list = []
+        node_linewidths_list = []
+        node_labels = {} # For output node letters
 
-        input_x_coord = 0.0
-        x_increment_per_level = 1.5 # Horizontal spacing between layers
+        # Combine all activations for easier lookup
+        all_activations = {}
+        # Input activations (map genome input keys to flattened pattern)
+        genome_input_keys_sorted = sorted(list(config_input_keys))
+        for i, key in enumerate(genome_input_keys_sorted):
+             all_activations[key] = flattened_pattern[i] if i < len(flattened_pattern) else 0.0
+        # Hidden activations
+        all_activations.update(current_hidden_activations)
+        # Output activations (map genome output keys to output activation list)
+        for i, key in enumerate(sorted_output_keys):
+             all_activations[key] = current_output_activations[i] if i < len(current_output_activations) else 0.0
 
-        nodes_by_level = {}
-        for node_id_val, level_val in node_levels.items():
-            if level_val != float('inf') and node_id_val in current_genome_node_ids:
-                 nodes_by_level.setdefault(level_val, []).append(node_id_val)
-        
-        # print(f"[VIS] Nodes grouped by level: {nodes_by_level}")
-
-
-        for level_idx in sorted(nodes_by_level.keys()): # Iterate through levels in order
-            nodes_in_this_level = sorted(nodes_by_level[level_idx]) # Sort nodes within a level by ID
+        for level_idx in sorted(nodes_by_level.keys()):
+            nodes_in_this_level = nodes_by_level[level_idx]
             
+            # --- Sort output nodes alphabetically for vertical positioning ---
+            if any(n in config_output_keys for n in nodes_in_this_level):
+                 nodes_in_this_level = sorted(nodes_in_this_level, key=lambda n: output_labels.get(n, 'Z')) # Sort by letter, fallback 'Z'
+            else:
+                 nodes_in_this_level = sorted(nodes_in_this_level) # Sort others by ID
+
             current_x = input_x_coord + level_idx * x_increment_per_level
-            if not nodes_in_this_level: continue # Skip if a level somehow has no nodes (should't happen with setdefault)
+            if not nodes_in_this_level: continue
 
             for i, node_id in enumerate(nodes_in_this_level):
                 y_pos_val = get_y_pos_local(nodes_in_this_level, i)
                 pos[node_id] = (current_x, y_pos_val)
-                
-                if node_id not in all_nodes_for_graph: # Ensure node is added only once
+
+                if node_id not in all_nodes_for_graph:
                     all_nodes_for_graph.append(node_id)
-                    # Determine color and size
+                    
+                    # Determine activation and color
+                    activation = all_activations.get(node_id, 0.0) # Default to 0 if activation missing
+                    node_color = self.get_activation_color(activation)
+                    node_colors_list.append(node_color)
+
+                    # Determine size and labels
+                    edge_color = 'black'
+                    line_width = 1.0
                     if node_id in config_input_keys:
-                        node_colors_list.append(color_map['input'])
                         node_sizes_list.append(30)
                     elif node_id in config_output_keys:
-                        node_colors_list.append(color_map['output'])
-                        node_sizes_list.append(35)
-                    else:  # Hidden node
-                        bias_val = 0.0
-                        if node_id in genome.nodes and hasattr(genome.nodes[node_id], 'bias'):
-                            bias_val = genome.nodes[node_id].bias if genome.nodes[node_id].bias is not None else 0.0
-                        node_colors_list.append(color_map['hidden'])
-                        node_sizes_list.append(40 + 20 * abs(bias_val))
-        
-        # Ensure all_nodes_for_graph matches node_colors_list and node_sizes_list
-        # This might require rebuilding these lists based on the final all_nodes_for_graph order if nodes were added out of sync.
-        # The current logic appends to all three lists together, so they should be synced.
+                        node_sizes_list.append(50) # Slightly larger for labels
+                        node_labels[node_id] = output_labels.get(node_id, '?') # Add letter label
+                        # Highlight predicted output node
+                        if node_id == predicted_output_node_id:
+                            edge_color = 'lime' # Bright green highlight
+                            line_width = 2.0
+                    else: # Hidden node
+                        node_sizes_list.append(40) # Default size for hidden
 
-        G.add_nodes_from(all_nodes_for_graph) # Add all nodes that have positions
-        # print(f"[VIS] Nodes added to G for ax_network: {len(all_nodes_for_graph)}. Sample: {all_nodes_for_graph[:5]}")
-        # print(f"[VIS] Positions calculated (pos dict size {len(pos)}).")
+                    node_edgecolors_list.append(edge_color)
+                    node_linewidths_list.append(line_width)
 
+        G.add_nodes_from(all_nodes_for_graph)
 
-        # Add connections
-        edge_widths = []
-        edge_colors_list_for_edges = []
-        edges_to_draw = []
-
-        for conn_key, conn in genome.connections.items():
-            # Correctly access input and output node IDs from conn.key
-            in_node_id = conn.key[0]
-            out_node_id = conn.key[1]
-            # Use getattr for 'enabled' as a safeguard
-            if getattr(conn, 'enabled', True) and in_node_id in G and out_node_id in G:
-                edges_to_draw.append(conn_key) # conn_key is (in_node_id, out_node_id)
-                edge_widths.append(max(0.3, abs(conn.weight) * 1.5))
-                edge_colors_list_for_edges.append('#59a14f' if conn.weight > 0 else '#e15759')
-
+        # --- Draw Nodes ---
         nx.draw_networkx_nodes(G, pos, ax=self.ax_network, nodelist=all_nodes_for_graph,
                                node_color=node_colors_list, node_size=node_sizes_list,
-                               edgecolors='black', linewidths=1.0)
-        if edges_to_draw: # Only draw edges if there are any
+                               edgecolors=node_edgecolors_list, linewidths=node_linewidths_list)
+
+        # --- Draw Node Labels (Output Nodes) ---
+        nx.draw_networkx_labels(G, pos, ax=self.ax_network, labels=node_labels, font_size=8, font_color='black')
+
+
+        # --- Draw Connections ---
+        edge_colors_list_for_edges = []
+        edges_to_draw = []
+        fixed_edge_width = 0.5 # Thin connections
+
+        if genome.connections:
+            for conn_key, conn in genome.connections.items():
+                in_node_id, out_node_id = conn.key
+                if getattr(conn, 'enabled', True) and in_node_id in G and out_node_id in G:
+                    edges_to_draw.append(conn_key)
+                    # Color based on target node activation
+                    target_activation = all_activations.get(out_node_id, 0.0)
+                    edge_color = self.get_activation_color(target_activation)
+                    edge_colors_list_for_edges.append(edge_color)
+
+        if edges_to_draw:
             nx.draw_networkx_edges(G, pos, ax=self.ax_network, edgelist=edges_to_draw,
-                                   width=edge_widths, edge_color=edge_colors_list_for_edges,
-                                   arrowsize=7, arrowstyle='->', alpha=0.6)
+                                   width=fixed_edge_width, # Use fixed thin width
+                                   edge_color=edge_colors_list_for_edges,
+                                   arrowsize=7, arrowstyle='->', alpha=0.7) # Slightly increased alpha
+
         self.ax_network.set_title('Network Topology', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
         self.ax_network.autoscale_view()
-        self.ax_network.set_xticks([]) # Ensure ticks are off
-        self.ax_network.set_yticks([])
-        # Set margins for the network plot to give some space
         self.ax_network.margins(0.1)
 
-        # --- Add ConnectionPatches between subplots for individual nodes ---
+        # --- 3. Add ConnectionPatches between subplots ---
+        # Define input_node_ids for this scope
+        input_node_ids = sorted([n_id for n_id in current_genome_node_ids if n_id in config_input_keys])
 
-        # 1. Connect each visual input neuron in ax_input to its corresponding genome input node in ax_network
-        # input_pos is for ax_input, pos is for ax_network
-        # self.config.genome_config.input_keys are sorted, e.g., [-1, -2, ..., -36]
-        # We assume the 0th visual input neuron (input_pos[0]) corresponds to input_keys[0]
-        genome_input_keys = sorted(list(self.config.genome_config.input_keys)) # Ensure sorted
-        if input_node_ids and len(input_pos) == len(genome_input_keys):
-            for i in range(len(genome_input_keys)):
-                ax_input_coord = input_pos[i] # Coordinate of the i-th visual input node in ax_input
-                network_input_node_id = genome_input_keys[i]
-                if network_input_node_id in pos: # Ensure the node exists in the network drawing
+        if input_node_ids and len(input_pos) == len(genome_input_keys_sorted):
+            for i in range(len(genome_input_keys_sorted)):
+                ax_input_idx = i # Visual index in ax_input
+                network_input_node_id = genome_input_keys_sorted[i]
+
+                if network_input_node_id in pos and ax_input_idx in input_pos:
+                    ax_input_coord = input_pos[ax_input_idx]
                     ax_network_coord = pos[network_input_node_id]
-
-                   
-                    # Determine color based on activation
-                    activation_color = "blue" if flattened_pattern[i] == 1 else "gray"
+                    
+                    # Color based on input activation
+                    activation = flattened_pattern[i] if i < len(flattened_pattern) else 0.0
+                    patch_color = self.get_activation_color(activation, min_val=0.0, max_val=1.0, color_low=(0.2, 0.2, 0.8), color_high=(0.8, 0.5, 0.2)) # Blue to Orange
+                    
                     con = ConnectionPatch(xyA=ax_input_coord, xyB=ax_network_coord,
                                           coordsA="data", coordsB="data",
                                           axesA=self.ax_input, axesB=self.ax_network,
-                                          color=activation_color, linestyle=":", alpha=0.4 if flattened_pattern[i] == 1 else 0.2, linewidth=0.5, zorder=-1)
+                                          color=patch_color, linestyle=":",
+                                          alpha=0.5 if activation > 0 else 0.2, # More visible if active
+                                          linewidth=0.5, zorder=-1)
                     self.fig.add_artist(con)
                     self.inter_ax_patches.append(con)
 
-        # 4. Draw prediction text
-        if current_prediction is None:
-            current_prediction = "?"
 
-        prediction_color = 'white' # Default
-        if is_correct is not None: # Apply color logic based on correctness info
-            prediction_color = 'green' if is_correct else 'red'
-        
-        # Construct the base prediction text
+        # --- 4. Draw Prediction Text (ax_pred) ---
+        if current_prediction is None: current_prediction = "?"
+        prediction_color = 'green' if is_correct else ('red' if is_correct is not None else 'white')
         prediction_text = f"Predicted:\n{current_prediction}"
-
-        # Add the actual letter in parentheses if available
-        if actual_letter is not None:
-             prediction_text += f" ({actual_letter})"
+        if actual_letter is not None: prediction_text += f" ({actual_letter})"
 
         self.ax_pred.set_title('Prediction', color='white', fontsize=10, bbox=dict(facecolor='none', edgecolor='dimgray', boxstyle='round,pad=0.3', lw=0.5))
+        self.ax_pred.text(0.5, 0.5, prediction_text, color=prediction_color, ha='center', va='center', fontsize=10)
 
-
-        self.ax_pred.text(0.5, 0.5, prediction_text,
-                         color=prediction_color, ha='center', va='center', fontsize=10) # Prediction text fontsize was already 10
-
+        # --- Final Draw ---
         self.canvas.draw()
         plt.pause(0.01)
+
 
     def _pixmap_to_matrix(self, pixmap, actual_letter):
         """Convert QPixmap to 16x16 binary matrix"""

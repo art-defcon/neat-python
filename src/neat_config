@@ -8,7 +8,7 @@ pop_size = 150
 #   max: Selects the genome with the maximum fitness as the best genome.
 #   min: Selects the genome with the minimum fitness as the best genome.
 #   mean: Uses the mean fitness of the population to evaluate progress.
-fitness_criterion = mean
+fitness_criterion = max
 # Fitness value at which evolution stops
 fitness_threshold = 1.0
 
@@ -34,7 +34,7 @@ initial_connection = unconnected
 
 # Default state of connections (enabled or disabled)
 # Options:
-#   True: Connections are enabled by default.
+#   True: Connections are enabled by default.ß
 #   False: Connections are disabled by default.
 enabled_default = True
 # Probability of mutating the enabled/disabled state of a connection
@@ -104,7 +104,7 @@ weight_mutate_power = 0.5
 # Probability of adding a new connection during mutation
 conn_add_prob = 0.5
 # Probability of deleting an existing connection during mutation
-conn_delete_prob = 0.5
+conn_delete_prob = 0.4
 # Probability of adding a new node during mutation
 node_add_prob = 0.3
 # Probability of deleting an existing node during mutation

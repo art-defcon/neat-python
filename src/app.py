@@ -63,6 +63,7 @@ class NEATLetterClassifier(QMainWindow):
             self.visualization.draw_network(
                 genome=initial_genome,
                 actual_letter_pattern=initial_letter_pattern,
+                hidden_node_activations=None, # Added
                 actual_output_activations=output_activations,
                 actual_prediction=predicted_letter,
                 actual_letter=initial_letter,
@@ -70,10 +71,10 @@ class NEATLetterClassifier(QMainWindow):
             )
         elif initial_genome:
              # Handle case where letter_pattern could not be generated
-             self.visualization.draw_network(genome=initial_genome, actual_prediction="Error: No Pattern", actual_letter=None)
+             self.visualization.draw_network(genome=initial_genome, hidden_node_activations=None, actual_prediction="Error: No Pattern", actual_letter=None) # Added
         else:
              # Handle case: No initial genome found
-             self.visualization.draw_network(genome=None, actual_prediction="Error: No Genome", actual_letter=None)
+             self.visualization.draw_network(genome=None, hidden_node_activations=None, actual_prediction="Error: No Genome", actual_letter=None) # Added
 
         self.update_stats_display() # Update stats for the initial state
         # --- End of Initial Network Visualization ---
@@ -242,6 +243,7 @@ class NEATLetterClassifier(QMainWindow):
                         self.visualization.draw_network(
                             genome=self.neat_logic.p.best_genome,
                             actual_letter_pattern=letter_pattern,
+                            hidden_node_activations=None, # Added
                             actual_output_activations=output_activations,
                             actual_prediction=predicted_letter,
                             actual_letter=current_eval_letter,
@@ -250,6 +252,7 @@ class NEATLetterClassifier(QMainWindow):
                     else:
                          self.visualization.draw_network(
                             genome=self.neat_logic.p.best_genome,
+                            hidden_node_activations=None, # Added
                             actual_prediction="Error: No Pattern",
                             actual_letter=None
                         )
@@ -299,6 +302,7 @@ class NEATLetterClassifier(QMainWindow):
             self.visualization.draw_network(
                 genome=current_genome,
                 actual_letter_pattern=letter_pattern,
+                hidden_node_activations=None, # Added
                 actual_output_activations=output_activations,
                 actual_prediction=predicted_letter,
                 actual_letter=random_actual_letter,
@@ -309,11 +313,11 @@ class NEATLetterClassifier(QMainWindow):
             self.update_stats_display()
         elif current_genome:
              # Handle case where letter_pattern could not be generated
-             self.visualization.draw_network(genome=current_genome, actual_prediction="Error: No Pattern", actual_letter=None)
+             self.visualization.draw_network(genome=current_genome, hidden_node_activations=None, actual_prediction="Error: No Pattern", actual_letter=None) # Added
              self.update_stats_display()
         else:
              # Handle case: No genome found
-             self.visualization.draw_network(genome=None, actual_prediction="Error: No Genome", actual_letter=None)
+             self.visualization.draw_network(genome=None, hidden_node_activations=None, actual_prediction="Error: No Genome", actual_letter=None) # Added
              self.update_stats_display()
 
 
