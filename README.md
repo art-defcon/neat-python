@@ -20,7 +20,7 @@ This project utilizes the following technologies and libraries:
 -   **matplotlib**: Used for plotting and visualization, specifically for the fitness history graph and network visualization.
 -   **networkx**: Used for representing and manipulating the neural network graph structure for visualization.
 -   **numpy**: Used for numerical operations, particularly in handling the pixel grid representation of letters.
--   **NEAT Algorithm**: The core of this project is the NeuroEvolution of Augmenting Topologies (NEAT) algorithm, implemented using the excellent [neat-python](https://github.com/CodeReclaimers/neat-python) library by CodeReclaimers.
+-   **NEAT Algorithm**: The core of this project is the NeuroEvolution of Augmenting Topologies (NEAT) algorithm, implemented using the excellent [neat-python](https://github.com/CodeReclaimers/neat-python) library by CodeReclaimers. **DISCLAIMER: I have modified neat-python slightly will publish diff or fork later**
 
 ### Installation and Running
 
